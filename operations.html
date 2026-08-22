@@ -1166,17 +1166,29 @@
     const baseName = (harmoNameInput.value || 'harmonica').replace(/[\/\\]/g, '-');
     const finalName = baseName + (tuningFinished ? '_FAIT' : '') + '.json';
 
+    // vérifie (et demande si besoin) la permission d'écriture sur un handle — sans elle,
+    // createWritable() échoue silencieusement sur certains navigateurs (observé sur iPad)
+    async function ensureWritePermission(handle){
+      try{
+        let perm = await handle.queryPermission({ mode: 'readwrite' });
+        if(perm !== 'granted') perm = await handle.requestPermission({ mode: 'readwrite' });
+        return perm === 'granted';
+      }catch(err){ return false; }
+    }
+
     // 1) pas encore terminé, et fichier ouvert via la File System Access API : on réécrit
     // directement dedans, au même endroit, sans créer de nouveau téléchargement
     if(loadedFileHandle && !tuningFinished && typeof loadedFileHandle.createWritable === 'function'){
       try{
-        const writable = await loadedFileHandle.createWritable();
-        await writable.write(jsonText);
-        await writable.close();
-        loadStatus.textContent = 'Sauvegardé directement dans le fichier d\u2019origine.';
-        return;
+        if(await ensureWritePermission(loadedFileHandle)){
+          const writable = await loadedFileHandle.createWritable();
+          await writable.write(jsonText);
+          await writable.close();
+          loadStatus.textContent = 'Sauvegardé directement dans le fichier d\u2019origine.';
+          return;
+        }
       }catch(err){
-        // on continue vers le repli classique ci-dessous
+        // on continue vers le repli ci-dessous
       }
     }
 
@@ -1184,22 +1196,48 @@
     // tente de renommer le fichier d'origine en place (pas de doublon) si le navigateur le permet
     if(loadedFileHandle && tuningFinished && typeof loadedFileHandle.createWritable === 'function'){
       try{
-        const writable = await loadedFileHandle.createWritable();
-        await writable.write(jsonText);
-        await writable.close();
-        if(typeof loadedFileHandle.move === 'function'){
-          await loadedFileHandle.move(finalName);
-          loadStatus.textContent = 'Sauvegardé et renommé directement : ' + finalName;
+        if(await ensureWritePermission(loadedFileHandle)){
+          const writable = await loadedFileHandle.createWritable();
+          await writable.write(jsonText);
+          await writable.close();
+          if(typeof loadedFileHandle.move === 'function'){
+            await loadedFileHandle.move(finalName);
+            loadStatus.textContent = 'Sauvegardé et renommé directement : ' + finalName;
+            return;
+          }
+          loadStatus.textContent = 'Sauvegardé dans le fichier d\u2019origine (renommage automatique non supporté par ce navigateur — pense à ajouter "_FAIT" toi-même si besoin).';
           return;
         }
-        loadStatus.textContent = 'Sauvegardé dans le fichier d\u2019origine (renommage automatique non supporté par ce navigateur — pense à ajouter "_FAIT" toi-même si besoin).';
-        return;
       }catch(err){
-        // on continue vers le repli classique ci-dessous
+        // on continue vers le repli ci-dessous
       }
     }
 
-    // 3) repli : téléchargement classique (Safari, ou si les étapes précédentes ont échoué)
+    // 3) repli : fenêtre "Enregistrer sous" ouverte directement dans le dossier du dernier
+    // fichier chargé (au lieu de tomber dans "Téléchargements" par défaut)
+    if(supportsFSA && typeof window.showSaveFilePicker === 'function'){
+      try{
+        const opts = {
+          suggestedName: finalName,
+          types: [{ description: 'Fichier harmonica', accept: { 'application/json': ['.json'] } }]
+        };
+        if(lastFileHandle) opts.startIn = lastFileHandle;
+        else opts.id = 'harmonica-config-picker';
+        const handle = await window.showSaveFilePicker(opts);
+        const writable = await handle.createWritable();
+        await writable.write(jsonText);
+        await writable.close();
+        lastFileHandle = handle;
+        idbSet(IDB_KEY, handle);
+        loadStatus.textContent = 'Fichier enregistré : ' + handle.name;
+        return;
+      }catch(err){
+        if(err && err.name === 'AbortError') return; // annulé par l'utilisateur : on ne force pas de téléchargement
+        // sinon, on continue vers le tout dernier repli
+      }
+    }
+
+    // 4) dernier repli : téléchargement classique (Safari, ou si tout le reste a échoué)
     const blob = new Blob([jsonText], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
