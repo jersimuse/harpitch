@@ -80,6 +80,26 @@
     cursor: pointer;
   }
   .ghost-btn-white:hover{ background: rgba(237,233,223,0.1); }
+  .finish-btn{
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text-dim);
+    background: transparent;
+    border: 1px solid var(--panel-line);
+    border-radius: 999px;
+    padding: 9px 18px;
+    width: 150px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+  }
+  .finish-btn:hover{ background: rgba(255,255,255,0.06); }
+  .finish-btn.active{
+    color: var(--in-tune);
+    border-color: var(--in-tune);
+    background: rgba(111,207,151,0.14);
+  }
   button.icon-btn{
     display:flex; align-items:center; justify-content:center; gap:8px;
     width: 100%;
@@ -631,11 +651,14 @@
       <div class="load-panel">
         <div class="harmo-title">Charger un harmonica</div>
         <div class="load-row">
-          <label for="fileInput" class="ghost-btn-white" style="cursor:pointer;">Charger Harmo</label>
+          <button type="button" class="ghost-btn-white" id="chooseFileBtn">Charger Harmo</button>
           <input type="file" id="fileInput" accept="application/json,.json,.txt" style="display:none;">
           <span class="load-status" id="loadStatus" style="margin-top:0;">Sélectionne le fichier .json reçu.</span>
         </div>
-        <button class="ghost-btn" id="saveBtn" style="margin-top:12px;">Sauvegarder</button>
+        <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
+          <button class="finish-btn" id="finishBtn">Accordage terminé</button>
+          <button class="ghost-btn" id="saveBtn" style="margin-top:0;">Sauvegarder</button>
+        </div>
       </div>
 
       <div class="seq-panel reed-panel">
@@ -987,6 +1010,11 @@
 
     renderCorrespondancesBox();
 
+    if(typeof finishBtn !== 'undefined'){
+      tuningFinished = !!data.accordageTermine;
+      finishBtn.classList.toggle('active', tuningFinished);
+    }
+
     loadStatus.textContent = 'Harmonica chargé : ' + (data.harmonica || '—');
     if(typeof deleteBtn !== 'undefined') deleteBtn.disabled = true;
     if(typeof saveBtn !== 'undefined') saveBtn.style.display = 'inline-block';
@@ -995,7 +1023,97 @@
   keySelect.addEventListener('change', renderCorrespondancesBox);
   renderCorrespondancesBox();
 
+  // Détection de la File System Access API (Chrome/Edge sur PC, potentiellement Chrome sur iPad
+  // dans l'UE avec son propre moteur — pas Safari). Quand disponible, on peut réécrire directement
+  // dans le fichier d'origine à la sauvegarde, sans créer de nouveau téléchargement.
+  const supportsFSA = typeof window.showOpenFilePicker === 'function';
+  let loadedFileHandle = null; // handle vers le fichier ouvert via la File System Access API, s'il y en a un
+  let lastFileHandle = null;   // dernier fichier chargé — sert de repère pour rouvrir directement dans le
+                                // même dossier la prochaine fois (le navigateur ouvre le sélecteur dans le
+                                // dossier d'un fichier donné en "startIn"), mémorisé dans IndexedDB pour
+                                // survivre à la fermeture de la page
+
+  const IDB_NAME = 'harmonica-ops-db';
+  const IDB_STORE = 'handles';
+  const IDB_KEY = 'lastLoadedFileHandle';
+
+  function idbOpen(){
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => { req.result.createObjectStore(IDB_STORE); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function idbSet(key, value){
+    try{
+      const db = await idbOpen();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).put(value, key);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }catch(err){ /* IndexedDB indisponible : on ignore silencieusement, pas bloquant */ }
+  }
+
+  async function idbGet(key){
+    try{
+      const db = await idbOpen();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, 'readonly');
+        const req = tx.objectStore(IDB_STORE).get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    }catch(err){ return null; }
+  }
+
+  // au chargement de la page, on retente d'utiliser le dernier dossier connu (mémorisé la fois précédente)
+  async function restoreLastFileHandle(){
+    if(!supportsFSA) return;
+    const handle = await idbGet(IDB_KEY);
+    if(handle) lastFileHandle = handle;
+  }
+  restoreLastFileHandle();
+
+  const chooseFileBtn = document.getElementById('chooseFileBtn');
+  chooseFileBtn.addEventListener('click', async () => {
+    if(supportsFSA){
+      try{
+        const opts = {
+          id: 'harmonica-config-picker', // repli si jamais startIn ne peut pas être utilisé
+          types: [{ description: 'Fichier harmonica', accept: { 'application/json': ['.json'] } }],
+          excludeAcceptAllOption: false,
+          multiple: false
+        };
+        if(lastFileHandle) opts.startIn = lastFileHandle; // rouvre directement dans le dossier du dernier fichier chargé
+        const [handle] = await window.showOpenFilePicker(opts);
+        loadedFileHandle = handle;
+        lastFileHandle = handle;
+        idbSet(IDB_KEY, handle); // mémorisé pour la prochaine visite, même après fermeture de la page
+        const file = await handle.getFile();
+        const text = await file.text();
+        try{
+          const data = JSON.parse(text);
+          loadFromData(data);
+        }catch(err){
+          loadStatus.textContent = "Fichier invalide — vérifie qu'il s'agit bien du fichier .json exporté par l'accordeur.";
+        }
+      }catch(err){
+        if(err && err.name === 'AbortError') return; // l'utilisateur a annulé la sélection
+        loadedFileHandle = null;
+        fileInput.click(); // repli sur la méthode classique en cas de souci inattendu
+      }
+    } else {
+      loadedFileHandle = null;
+      fileInput.click();
+    }
+  });
+
   fileInput.addEventListener('change', (e) => {
+    loadedFileHandle = null; // chargé via la méthode classique : pas de handle réinscriptible
     const file = e.target.files[0];
     if(!file) return;
     const reader = new FileReader();
@@ -1012,10 +1130,17 @@
   });
 
   const saveBtn = document.getElementById('saveBtn');
+  const finishBtn = document.getElementById('finishBtn');
+  let tuningFinished = false;
+
+  finishBtn.addEventListener('click', () => {
+    tuningFinished = !tuningFinished;
+    finishBtn.classList.toggle('active', tuningFinished);
+  });
 
   function pad2(n){ return String(n).padStart(2, '0'); }
 
-  saveBtn.addEventListener('click', () => {
+  saveBtn.addEventListener('click', async () => {
     if(!currentData && !harmoNameInput.value.trim()){
       const now = new Date();
       const day = pad2(now.getDate());
@@ -1028,17 +1153,58 @@
       harmonica: harmoNameInput.value,
       tonalite: keySelect.value,
       accordage: tuningSelect.value,
+      accordageTermine: tuningFinished,
       harmonicaBoxInitial: { A: collectRow('ctrl', 'A'), S: collectRow('ctrl', 'S') },
       harmonicaFinal: {
         ecarts: { A: collectRow('reed-base', 'A'), S: collectRow('reed-base', 'S') },
         resteAFaire: { A: collectRow('cur', 'A'), S: collectRow('cur', 'S') }
       }
     });
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const jsonText = JSON.stringify(data, null, 2);
+    // suffixe "_FAIT" (pas préfixe) quand l'accordage est marqué terminé : le fichier reste juste
+    // à côté de l'original une fois trié par nom, plus facile à repérer que loin dans la liste
+    const baseName = (harmoNameInput.value || 'harmonica').replace(/[\/\\]/g, '-');
+    const finalName = baseName + (tuningFinished ? '_FAIT' : '') + '.json';
+
+    // 1) pas encore terminé, et fichier ouvert via la File System Access API : on réécrit
+    // directement dedans, au même endroit, sans créer de nouveau téléchargement
+    if(loadedFileHandle && !tuningFinished && typeof loadedFileHandle.createWritable === 'function'){
+      try{
+        const writable = await loadedFileHandle.createWritable();
+        await writable.write(jsonText);
+        await writable.close();
+        loadStatus.textContent = 'Sauvegardé directement dans le fichier d\u2019origine.';
+        return;
+      }catch(err){
+        // on continue vers le repli classique ci-dessous
+      }
+    }
+
+    // 2) marqué terminé, et fichier ouvert via la File System Access API : on réécrit puis on
+    // tente de renommer le fichier d'origine en place (pas de doublon) si le navigateur le permet
+    if(loadedFileHandle && tuningFinished && typeof loadedFileHandle.createWritable === 'function'){
+      try{
+        const writable = await loadedFileHandle.createWritable();
+        await writable.write(jsonText);
+        await writable.close();
+        if(typeof loadedFileHandle.move === 'function'){
+          await loadedFileHandle.move(finalName);
+          loadStatus.textContent = 'Sauvegardé et renommé directement : ' + finalName;
+          return;
+        }
+        loadStatus.textContent = 'Sauvegardé dans le fichier d\u2019origine (renommage automatique non supporté par ce navigateur — pense à ajouter "_FAIT" toi-même si besoin).';
+        return;
+      }catch(err){
+        // on continue vers le repli classique ci-dessous
+      }
+    }
+
+    // 3) repli : téléchargement classique (Safari, ou si les étapes précédentes ont échoué)
+    const blob = new Blob([jsonText], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = (harmoNameInput.value || 'harmonica').replace(/[\/\\]/g, '-') + '.json';
+    a.download = finalName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
