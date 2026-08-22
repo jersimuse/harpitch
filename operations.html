@@ -1,0 +1,1609 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Opérations harmonica — réaccordage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #14151a;
+    --panel: #1c1e26;
+    --panel-line: #2a2d38;
+    --gold: #c9a227;
+    --gold-dim: #8a721e;
+    --in-tune: #6fcf97;
+    --flat-sharp: #d64550;
+    --text: #ede9df;
+    --text-dim: #8b8d98;
+  }
+  *{ box-sizing: border-box; }
+  html,body{
+    margin:0; padding:0; min-height:100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    display:flex; align-items:flex-start; justify-content:center;
+  }
+  body{ min-height:100vh; padding: 24px; width:100%; }
+
+  .page{ max-width: 940px; margin: 0 auto; }
+
+  .load-panel{
+    background: linear-gradient(180deg, var(--panel), #171922);
+    border: 1px solid var(--panel-line);
+    border-radius: 18px;
+    padding: 20px 24px;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  .load-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  input[type="file"]{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .load-status{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 10px;
+  }
+  .ghost-btn{
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--gold);
+    background: transparent;
+    border: 1px solid var(--gold);
+    border-radius: 999px;
+    padding: 9px 18px;
+    width: 150px;
+    text-align: center;
+    display: inline-block;
+    cursor: pointer;
+  }
+  .ghost-btn:hover{ background: rgba(201,162,39,0.1); }
+  .ghost-btn:disabled{ opacity: 0.4; cursor: not-allowed; }
+  .ghost-btn-white{
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text);
+    background: transparent;
+    border: 1px solid var(--text);
+    border-radius: 999px;
+    padding: 9px 18px;
+    width: 150px;
+    text-align: center;
+    display: inline-block;
+    cursor: pointer;
+  }
+  .ghost-btn-white:hover{ background: rgba(237,233,223,0.1); }
+  button.icon-btn{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    width: 100%;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--flat-sharp);
+    background: transparent;
+    border: 1px solid var(--flat-sharp);
+    border-radius: 999px;
+    padding: 10px 18px;
+    cursor: pointer;
+    margin-top: 14px;
+  }
+  button.icon-btn:hover{ background: rgba(214,69,80,0.1); }
+  button.icon-btn:disabled{ opacity: 0.35; cursor: not-allowed; }
+
+  /* empilement simple par défaut (mobile / écran étroit) */
+  .layout{
+    display:flex;
+    flex-direction: column;
+    gap: 24px;
+    max-width: 1100px;
+    width:100%;
+    margin: 0 auto;
+  }
+  .tables-column{
+    display:flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .record-row-wrap{ width:100%; }
+
+  /* disposition en grille : sur écran de PC (≥900px de large), OU sur petit appareil
+     (smartphone/tablette) tenu en orientation paysage :
+     ligne 1 : numéro d'harmonica (gauche) + chargement de fichier (droite)
+     ligne 2 : vue anches, pleine largeur
+     ligne 3 : boutons enregistrement/pause
+     ligne 4 : accordeur (gauche) + les trois tableaux (droite) */
+  @media (min-width: 900px), (orientation: landscape){
+    .layout{
+      display:grid;
+      grid-template-columns: minmax(260px, 460px) 1fr;
+      grid-template-areas:
+        "harmoid  load"
+        "reeds    reeds"
+        "buttons  buttons"
+        "tuner    tables";
+      align-items:start;
+      gap: 24px;
+    }
+    .harmo-id-panel{ grid-area: harmoid; }
+    .load-panel{ grid-area: load; }
+    .reed-panel{ grid-area: reeds; }
+    .record-row-wrap{ grid-area: buttons; }
+    .rack{ grid-area: tuner; }
+    .tables-column{ grid-area: tables; }
+    .load-row{ flex-wrap: nowrap; }
+    .load-status{ flex: 1 1 auto; min-width: 0; margin-top: 0 !important; }
+  }
+
+  .harmo-id-panel{
+    width: 100%;
+    background: linear-gradient(180deg, var(--panel), #171922);
+    border: 1px solid var(--panel-line);
+    border-radius: 18px;
+    padding: 22px 24px;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  .harmo-id-row{
+    display:flex;
+    align-items:center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .seq-label{
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .harmo-name-input{
+    flex: 1 1 160px;
+    min-width: 140px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--panel-line);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+  .harmo-name-input:focus-visible{ outline: 2px solid var(--gold); outline-offset: 2px; }
+
+  .key-row{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap: 8px;
+    margin: 0;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .key-row select{
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--panel-line);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .rack{
+    width: 100%;
+    background: linear-gradient(180deg, var(--panel), #171922);
+    border: 1px solid var(--panel-line);
+    border-radius: 18px;
+    padding: 28px 26px 24px;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.03);
+    position: relative;
+  }
+  .rack::before{
+    content:"";
+    position:absolute; top:14px; left:50%; transform:translateX(-50%);
+    width:36px; height:4px; border-radius:2px;
+    background: var(--panel-line);
+  }
+
+  .eyebrow{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    text-align:center;
+    margin: 10px 0 4px;
+  }
+
+  .gauge-wrap{ margin: 18px 0 6px; position:relative; }
+  svg#gauge{ width:100%; height:auto; display:block; }
+  .needle{ transform-origin: 210px 190px; transition: transform 90ms ease-out; }
+  .zone-label{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 10px;
+    fill: var(--text-dim);
+    letter-spacing: 0.05em;
+  }
+
+  .readout{ text-align:center; margin-top: -6px; }
+  .note{
+    font-size: 64px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    transition: color 150ms ease;
+    min-height: 70px;
+  }
+  .cents{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-dim);
+    margin-top: 4px;
+    letter-spacing: 0.02em;
+  }
+  .cents b{ color: var(--text); }
+  .freq{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  .controls{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 18px;
+    border-top: 1px solid var(--panel-line);
+  }
+  .ref-tune{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    display:flex; align-items:center; gap:8px;
+  }
+  .ref-tune select{
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--panel-line);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+
+  button#toggle{
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.01em;
+    color: #14151a;
+    background: var(--gold);
+    border: none;
+    border-radius: 999px;
+    padding: 11px 22px;
+    cursor: pointer;
+    transition: transform 120ms ease, background 120ms ease;
+  }
+  button#toggle:hover{ background: #ddb731; }
+  button#toggle:active{ transform: scale(0.97); }
+  button#toggle.listening{
+    background: transparent;
+    color: var(--flat-sharp);
+    border: 1px solid var(--flat-sharp);
+  }
+  button#toggle:focus-visible{ outline: 2px solid var(--gold); outline-offset: 3px; }
+
+  .status{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-align:center;
+    color: var(--text-dim);
+    margin-top: 14px;
+    min-height: 14px;
+    line-height: 1.6;
+  }
+  @media (prefers-reduced-motion: reduce){ .needle{ transition: none; } }
+
+  .seq-panel{
+    width: 100%;
+    background: linear-gradient(180deg, var(--panel), #171922);
+    border: 1px solid var(--panel-line);
+    border-radius: 18px;
+    padding: 26px 24px 24px;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+
+  button.record-btn{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    width: 100%;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: #14151a;
+    background: var(--gold);
+    border: none;
+    border-radius: 999px;
+    padding: 12px 18px;
+    cursor: pointer;
+    transition: transform 120ms ease, background 120ms ease;
+  }
+  button.record-btn:hover{ background: #ddb731; }
+  button.record-btn:active{ transform: scale(0.97); }
+  button.record-btn.recording{
+    background: transparent;
+    color: var(--flat-sharp);
+    border: 1px solid var(--flat-sharp);
+  }
+  button.record-btn .dot{
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--flat-sharp);
+    flex-shrink: 0;
+  }
+  button.record-btn.recording .dot{ animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.25; } }
+
+  .record-row{
+    display:flex;
+    align-items:stretch;
+    gap: 10px;
+  }
+  button.pause-btn{
+    display:flex; align-items:center; justify-content:center; gap:4px;
+    width: 46px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    border: 1px solid var(--panel-line);
+    background: var(--bg);
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+  button.pause-btn:hover:not(:disabled){ border-color: var(--gold); }
+  button.pause-btn .bar{
+    width: 4px; height: 16px;
+    border-radius: 1px;
+    background: var(--text-dim);
+  }
+  button.pause-btn.active{
+    background: var(--gold);
+    border-color: var(--gold);
+  }
+  button.pause-btn.active .bar{ background: #14151a; }
+  button.pause-btn:disabled{ opacity: 0.35; cursor: not-allowed; }
+
+  button.delete-btn-compact{
+    display:flex; align-items:center; justify-content:center;
+    width: 46px;
+    flex-shrink: 0;
+    font-size: 16px;
+    border-radius: 999px;
+    border: 1px solid var(--flat-sharp);
+    background: transparent;
+    color: var(--flat-sharp);
+    cursor: pointer;
+    transition: background 120ms ease;
+  }
+  button.delete-btn-compact:hover:not(:disabled){ background: rgba(214,69,80,0.1); }
+  button.delete-btn-compact:disabled{ opacity: 0.35; cursor: not-allowed; }
+
+  .harmo-title{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  table.harmo{
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  table.harmo th, table.harmo td{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    text-align: center;
+    padding: 8px 2px;
+    border: 1px solid var(--panel-line);
+  }
+  table.harmo thead th{
+    color: var(--text-dim);
+    font-weight: 500;
+    background: rgba(255,255,255,0.02);
+  }
+  table.harmo thead th:first-child{ background: transparent; border: none; }
+  table.harmo tbody th{
+    color: var(--gold);
+    font-weight: 700;
+    width: 26px;
+    background: rgba(201,162,39,0.06);
+  }
+  table.harmo tbody td{ color: var(--text); }
+  table.harmo tbody td.val-0{ color: var(--text-dim); }
+  table.harmo tbody td.val-neg{ color: var(--flat-sharp); }
+  table.harmo tbody td.val-pos{ color: var(--in-tune); }
+  table.harmo tbody td.val-empty{ color: var(--text-dim); }
+  table.harmo tbody td[id^="cur-"]{ cursor: pointer; }
+  table.harmo tbody td[id^="cur-"]:hover{ background: rgba(255,255,255,0.06); }
+  table.harmo tbody td.cell-selected{
+    box-shadow: inset 0 0 0 2px var(--gold);
+    background: rgba(201,162,39,0.14);
+  }
+  table.harmo tbody td.win-cell{
+    background: rgba(111,207,151,0.28) !important;
+    box-shadow: inset 0 0 0 2px var(--in-tune);
+    color: var(--in-tune) !important;
+  }
+  table.harmo tbody td.win-cell.cell-selected{
+    box-shadow: inset 0 0 0 2px var(--gold) !important;
+    background: rgba(201,162,39,0.14) !important;
+  }
+  table.harmo tbody td.ambiguous-cell{
+    cursor: pointer;
+    box-shadow: inset 0 0 0 2px var(--gold);
+    animation: ambiguous-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes ambiguous-pulse{
+    0%,100%{ background: rgba(201,162,39,0.10); }
+    50%{ background: rgba(201,162,39,0.30); }
+  }
+
+  /* classes de couleur génériques, réutilisées hors du tableau (vue anches) */
+  .val-pos{ color: var(--in-tune); }
+  .val-neg{ color: var(--flat-sharp); }
+  .val-0{ color: var(--text-dim); }
+  .val-empty{ color: var(--text-dim); }
+  .cell-selected{
+    box-shadow: inset 0 0 0 2px var(--gold);
+    background: rgba(201,162,39,0.14);
+  }
+  .win-cell{
+    background: rgba(111,207,151,0.28) !important;
+    box-shadow: inset 0 0 0 2px var(--in-tune);
+    color: var(--in-tune) !important;
+  }
+  .win-cell.cell-selected{
+    box-shadow: inset 0 0 0 2px var(--gold) !important;
+    background: rgba(201,162,39,0.14) !important;
+  }
+
+  .reed-row{
+    display:flex;
+    justify-content:center;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 8px 0 4px;
+    flex-wrap: wrap;
+  }
+  .reed-type-label-col{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  .reed-type-label{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--gold);
+    height: 32px;
+    margin-top: 8px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .reed-hole-number{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-dim);
+    margin-top: 4px;
+    text-align:center;
+  }
+  .reed-unit{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  .reed-plate{
+    width: 28px;
+    height: 93px; /* hauteur fixe = la plus longue anche (case 1) + sa base, pour aligner "Reste à faire" en dessous */
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    position: relative;
+  }
+  .reed-plate-bottom{
+    width: 28px;
+    height: 93px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-end; /* ancre l'anche+base en bas ; l'espace vide se place au-dessus */
+    position: relative;
+  }
+  .reed-correspond{
+    position: absolute;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    line-height: 1;
+    color: var(--text-dim);
+  }
+  .reed-divider{
+    border-top: 1px solid var(--panel-line);
+    margin: 14px 0;
+  }
+  .reed-body{
+    width: 14px;
+    background: linear-gradient(180deg, #444858, #2a2d38);
+    border: 1px solid var(--panel-line);
+    border-radius: 2px 2px 0 0;
+  }
+  .reed-body-first{
+    background: linear-gradient(180deg, #7ec4f2, #2c5a7a);
+  }
+  /* base de l'anche : uniquement l'écart brut mesuré, couleur unique et discrète, statique */
+  .reed-base{
+    width: 28px;
+    height: 28px;
+    margin-top: -1px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background: var(--bg);
+    border: 1px solid var(--panel-line);
+    border-radius: 0 0 4px 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    color: #c9cbd4;
+  }
+  /* case-jumelle de "Reste à faire" : mêmes propriétés graphiques et comportement que le tableau */
+  .reed-remaining{
+    margin-top: 8px;
+    width: 38px;
+    height: 32px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border: 1px solid var(--panel-line);
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .reed-remaining:hover{ background: rgba(255,255,255,0.06); }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="layout" id="layout">
+
+      <div class="harmo-id-panel">
+        <div class="harmo-id-row">
+          <span class="seq-label">Numéro d'harmonica&nbsp;:</span>
+          <input type="text" id="harmoName" class="harmo-name-input">
+        </div>
+        <div class="key-row">
+          <span>Tonalité de l'harmonica&nbsp;:</span>
+          <select id="harmoKey">
+            <option value="G">G</option>
+            <option value="Ab">Ab</option>
+            <option value="A">A</option>
+            <option value="Bb">Bb</option>
+            <option value="B">B</option>
+            <option value="C" selected>C</option>
+            <option value="Db">Db</option>
+            <option value="D">D</option>
+            <option value="Eb">Eb</option>
+            <option value="E">E</option>
+            <option value="F">F</option>
+            <option value="F#">F#</option>
+          </select>
+        </div>
+        <div class="key-row">
+          <span>Accordage&nbsp;:</span>
+          <select id="harmoTuning">
+            <option value="richter" selected>Richter</option>
+            <option value="lydian_country">Lydien Country</option>
+            <option value="paddy_richter">Paddy Richter</option>
+            <option value="minor_harmonic">Mineur Harmonique</option>
+            <option value="minor_natural">Mineur Naturel (vHohner)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="load-panel">
+        <div class="harmo-title">Charger un harmonica</div>
+        <div class="load-row">
+          <label for="fileInput" class="ghost-btn-white" style="cursor:pointer;">Charger Harmo</label>
+          <input type="file" id="fileInput" accept="application/json,.json,.txt" style="display:none;">
+          <span class="load-status" id="loadStatus" style="margin-top:0;">Sélectionne le fichier .json reçu.</span>
+        </div>
+        <button class="ghost-btn" id="saveBtn" style="margin-top:12px;">Sauvegarder</button>
+      </div>
+
+      <div class="seq-panel reed-panel">
+        <div class="harmo-title">Reste à faire — vue anches</div>
+        <div class="reed-row" id="reedRowA">
+          <div class="reed-type-label-col"><div style="height:93px;"></div><div class="reed-type-label">A</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body reed-body-first" style="height:66px;"></div><div class="reed-correspond" id="reed-correspond-A-1" style="bottom:27px;"></div><div class="reed-base" id="reed-base-A-1"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-1"></div><div class="reed-hole-number">1</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:59px;"></div><div class="reed-correspond" id="reed-correspond-A-2" style="bottom:34px;"></div><div class="reed-base" id="reed-base-A-2"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-2"></div><div class="reed-hole-number">2</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:53px;"></div><div class="reed-correspond" id="reed-correspond-A-3" style="bottom:40px;"></div><div class="reed-base" id="reed-base-A-3"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-3"></div><div class="reed-hole-number">3</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:48px;"></div><div class="reed-correspond" id="reed-correspond-A-4" style="bottom:45px;"></div><div class="reed-base" id="reed-base-A-4"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-4"></div><div class="reed-hole-number">4</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:43px;"></div><div class="reed-correspond" id="reed-correspond-A-5" style="bottom:50px;"></div><div class="reed-base" id="reed-base-A-5"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-5"></div><div class="reed-hole-number">5</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:39px;"></div><div class="reed-correspond" id="reed-correspond-A-6" style="bottom:54px;"></div><div class="reed-base" id="reed-base-A-6"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-6"></div><div class="reed-hole-number">6</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:35px;"></div><div class="reed-correspond" id="reed-correspond-A-7" style="bottom:58px;"></div><div class="reed-base" id="reed-base-A-7"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-7"></div><div class="reed-hole-number">7</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:32px;"></div><div class="reed-correspond" id="reed-correspond-A-8" style="bottom:61px;"></div><div class="reed-base" id="reed-base-A-8"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-8"></div><div class="reed-hole-number">8</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:28px;"></div><div class="reed-correspond" id="reed-correspond-A-9" style="bottom:65px;"></div><div class="reed-base" id="reed-base-A-9"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-9"></div><div class="reed-hole-number">9</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:26px;"></div><div class="reed-correspond" id="reed-correspond-A-10" style="bottom:67px;"></div><div class="reed-base" id="reed-base-A-10"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-10"></div><div class="reed-hole-number">10</div></div>
+        </div>
+
+        <div class="reed-divider"></div>
+
+        <div class="reed-row" id="reedRowS">
+          <div class="reed-type-label-col"><div style="height:93px;"></div><div class="reed-type-label">S</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:26px;"></div><div class="reed-correspond" id="reed-correspond-S-10" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-10"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-10"></div><div class="reed-hole-number">10</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:28px;"></div><div class="reed-correspond" id="reed-correspond-S-9" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-9"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-9"></div><div class="reed-hole-number">9</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:32px;"></div><div class="reed-correspond" id="reed-correspond-S-8" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-8"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-8"></div><div class="reed-hole-number">8</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:35px;"></div><div class="reed-correspond" id="reed-correspond-S-7" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-7"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-7"></div><div class="reed-hole-number">7</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:39px;"></div><div class="reed-correspond" id="reed-correspond-S-6" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-6"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-6"></div><div class="reed-hole-number">6</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:43px;"></div><div class="reed-correspond" id="reed-correspond-S-5" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-5"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-5"></div><div class="reed-hole-number">5</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:48px;"></div><div class="reed-correspond" id="reed-correspond-S-4" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-4"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-4"></div><div class="reed-hole-number">4</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:53px;"></div><div class="reed-correspond" id="reed-correspond-S-3" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-3"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-3"></div><div class="reed-hole-number">3</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:59px;"></div><div class="reed-correspond" id="reed-correspond-S-2" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-2"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-2"></div><div class="reed-hole-number">2</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body reed-body-first" style="height:66px;"></div><div class="reed-correspond" id="reed-correspond-S-1" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-1"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-1"></div><div class="reed-hole-number">1</div></div>
+        </div>
+      </div>
+
+      <div class="record-row-wrap">
+        <div class="record-row">
+          <button class="record-btn" id="recordBtn" style="flex:1; width:auto;"><span class="dot"></span><span id="recordBtnText">Enregistrement</span></button>
+          <button class="pause-btn" id="pauseBtn" disabled title="Mettre en pause / reprendre">
+            <span class="bar"></span><span class="bar"></span>
+          </button>
+          <button class="delete-btn-compact" id="deleteBtn" disabled title="Effacer la case sélectionnée">🗑️</button>
+        </div>
+        <div class="status" id="recordStatus">&nbsp;</div>
+      </div>
+
+      <div class="rack">
+        <div class="eyebrow">Accordeur chromatique</div>
+
+        <div class="gauge-wrap">
+          <svg id="gauge" viewBox="0 0 420 220">
+            <path d="M 40 190 A 170 170 0 0 1 380 190" fill="none" stroke="#2a2d38" stroke-width="14" stroke-linecap="round"/>
+            <path id="okZone" d="M 189 21.6 A 170 170 0 0 1 231 21.6" fill="none" stroke="#6fcf97" stroke-width="14" stroke-linecap="round" opacity="0.55"/>
+            <g id="ticks"></g>
+            <text x="40" y="212" class="zone-label" text-anchor="middle">-50¢</text>
+            <text x="210" y="14" class="zone-label" text-anchor="middle">0</text>
+            <text x="380" y="212" class="zone-label" text-anchor="middle">+50¢</text>
+            <g class="needle" id="needle">
+              <line x1="210" y1="190" x2="210" y2="45" stroke="#ede9df" stroke-width="3" stroke-linecap="round"/>
+              <circle cx="210" cy="190" r="7" fill="#c9a227"/>
+            </g>
+          </svg>
+        </div>
+
+        <div class="readout">
+          <div class="note" id="noteOut">—</div>
+          <div class="cents" id="centsOut">en attente du signal</div>
+          <div class="freq" id="freqOut">&nbsp;</div>
+        </div>
+
+        <div class="controls">
+          <div class="ref-tune">
+            <span>La4 =</span>
+            <select id="refFreq">
+              <option value="435">435 Hz</option>
+              <option value="440">440 Hz</option>
+              <option value="442">442 Hz</option>
+              <option value="443" selected>443 Hz</option>
+              <option value="444">444 Hz</option>
+            </select>
+          </div>
+          <button id="toggle">Activer le micro</button>
+        </div>
+
+        <div class="status" id="status">&nbsp;</div>
+      </div>
+
+    <div class="tables-column">
+
+      <div class="seq-panel">
+        <div class="harmo-title">Opérations à réaliser</div>
+        <table class="harmo">
+          <thead>
+            <tr><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th></tr>
+          </thead>
+          <tbody>
+            <tr><th>A</th><td id="op-A-1"></td><td id="op-A-2"></td><td id="op-A-3"></td><td id="op-A-4"></td><td id="op-A-5"></td><td id="op-A-6"></td><td id="op-A-7"></td><td id="op-A-8"></td><td id="op-A-9"></td><td id="op-A-10"></td></tr>
+            <tr><th>S</th><td id="op-S-1"></td><td id="op-S-2"></td><td id="op-S-3"></td><td id="op-S-4"></td><td id="op-S-5"></td><td id="op-S-6"></td><td id="op-S-7"></td><td id="op-S-8"></td><td id="op-S-9"></td><td id="op-S-10"></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="seq-panel" style="display:none;" aria-hidden="true">
+        <div class="harmo-title">Reste à faire</div>
+        <table class="harmo">
+          <thead>
+            <tr><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th></tr>
+          </thead>
+          <tbody>
+            <tr><th>A</th><td class="val-empty" id="cur-A-1"></td><td class="val-empty" id="cur-A-2"></td><td class="val-empty" id="cur-A-3"></td><td class="val-empty" id="cur-A-4"></td><td class="val-empty" id="cur-A-5"></td><td class="val-empty" id="cur-A-6"></td><td class="val-empty" id="cur-A-7"></td><td class="val-empty" id="cur-A-8"></td><td class="val-empty" id="cur-A-9"></td><td class="val-empty" id="cur-A-10"></td></tr>
+            <tr><th>S</th><td class="val-empty" id="cur-S-1"></td><td class="val-empty" id="cur-S-2"></td><td class="val-empty" id="cur-S-3"></td><td class="val-empty" id="cur-S-4"></td><td class="val-empty" id="cur-S-5"></td><td class="val-empty" id="cur-S-6"></td><td class="val-empty" id="cur-S-7"></td><td class="val-empty" id="cur-S-8"></td><td class="val-empty" id="cur-S-9"></td><td class="val-empty" id="cur-S-10"></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="seq-panel">
+        <div class="harmo-title">HarmonicaBox initial</div>
+        <table class="harmo">
+          <thead>
+            <tr><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th></tr>
+          </thead>
+          <tbody>
+            <tr><th>A</th><td class="val-empty" id="ctrl-A-1"></td><td class="val-empty" id="ctrl-A-2"></td><td class="val-empty" id="ctrl-A-3"></td><td class="val-empty" id="ctrl-A-4"></td><td class="val-empty" id="ctrl-A-5"></td><td class="val-empty" id="ctrl-A-6"></td><td class="val-empty" id="ctrl-A-7"></td><td class="val-empty" id="ctrl-A-8"></td><td class="val-empty" id="ctrl-A-9"></td><td class="val-empty" id="ctrl-A-10"></td></tr>
+            <tr><th>S</th><td class="val-empty" id="ctrl-S-1"></td><td class="val-empty" id="ctrl-S-2"></td><td class="val-empty" id="ctrl-S-3"></td><td class="val-empty" id="ctrl-S-4"></td><td class="val-empty" id="ctrl-S-5"></td><td class="val-empty" id="ctrl-S-6"></td><td class="val-empty" id="ctrl-S-7"></td><td class="val-empty" id="ctrl-S-8"></td><td class="val-empty" id="ctrl-S-9"></td><td class="val-empty" id="ctrl-S-10"></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const NOTE_NAMES = ["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
+  const PITCH_CLASS = { C:0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, F:5, 'F#':6, Gb:6, G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11 };
+  const KEY_OFFSETS = { G:-5, Ab:-4, A:-3, Bb:-2, B:-1, C:0, Db:1, D:2, Eb:3, E:4, F:5, 'F#':6 };
+  const BLOW_C = ["C4","E4","G4","C5","E5","G5","C6","E6","G6","C7"];
+  const DRAW_C = ["D4","G4","B4","D5","F5","A5","B5","D6","F6","A6"];
+  function noteNameToMidi(str){
+    const m = str.match(/^([A-G][#b]?)(-?\d+)$/);
+    return 12 * (parseInt(m[2],10) + 1) + PITCH_CLASS[m[1]];
+  }
+  const BLOW_C_MIDI = BLOW_C.map(noteNameToMidi);
+  const DRAW_C_MIDI = DRAW_C.map(noteNameToMidi);
+
+  // écarts en demi-tons appliqués à des cases précises, par rapport à l'accordage Richter de base
+  const TUNINGS = {
+    richter:         { adjust: {} },
+    lydian_country:  { adjust: { 'A5': 1 } },
+    paddy_richter:   { adjust: { 'S3': 2 } },
+    minor_harmonic:  { adjust: { 'S2': -1, 'S5': -1, 'S8': -1, 'A6': -1, 'A10': -1 } },
+    minor_natural:   { adjust: { 'S2': -1, 'S5': -1, 'S8': -1, 'A3': -1, 'A7': -1 } },
+  };
+
+  function tuningAdjust(tuningKey, type, hole){
+    const tuning = TUNINGS[tuningKey] || TUNINGS.richter;
+    return tuning.adjust[type + hole] || 0;
+  }
+
+  const fileInput = document.getElementById('fileInput');
+  const loadStatus = document.getElementById('loadStatus');
+  const layout = document.getElementById('layout');
+
+  const harmoNameInput = document.getElementById('harmoName');
+  const keySelect = document.getElementById('harmoKey');
+  const tuningSelect = document.getElementById('harmoTuning');
+
+  // trois tableaux de correspondances, selon le groupe de tonalités de l'harmonica.
+  // Pour l'instant toutes les cases valent -17 ; à affiner plus tard.
+  const CORRESPONDANCES_BOX = {
+    G: { A: Array(10).fill(-17), S: Array(10).fill(-17) },
+    C: { A: Array(10).fill(-17), S: Array(10).fill(-17) },
+    E: { A: Array(10).fill(-17), S: Array(10).fill(-17) },
+  };
+
+  // détermine quel tableau ("CorrespondancesBox") s'applique selon la tonalité de l'harmonica
+  function correspondancesBoxGroupFor(harmonicaKey){
+    if(['G','Ab','A'].includes(harmonicaKey)) return 'G';
+    if(['Bb','B','C','Db','D'].includes(harmonicaKey)) return 'C';
+    if(['Eb','E','F','F#'].includes(harmonicaKey)) return 'E';
+    return 'C';
+  }
+
+  // affiche les valeurs de CorrespondancesBox au-dessus de chaque base d'anche correspondante
+  function renderCorrespondancesBox(){
+    const box = CORRESPONDANCES_BOX[correspondancesBoxGroupFor(keySelect.value)];
+    ['A','S'].forEach(type => {
+      for(let h=1; h<=10; h++){
+        const el = document.getElementById('reed-correspond-' + type + '-' + h);
+        if(el) el.textContent = box[type][h-1];
+      }
+    });
+  }
+
+  function valClass(text){
+    if(text === '–' || text === '' || text === undefined) return 'val-empty';
+    if(String(text).startsWith('+')) return 'val-pos';
+    if(String(text).startsWith('-')) return 'val-neg';
+    return 'val-0';
+  }
+
+  // mêmes conventions que la page 1 (accordeur.html) : '–' représente une case vide dans le fichier
+  function cellText(id){
+    const el = document.getElementById(id);
+    if(!el) return '–';
+    const t = el.textContent.trim();
+    return t === '' ? '–' : t;
+  }
+
+  function collectRow(prefix, type){
+    const holes = [1,2,3,4,5,6,7,8,9,10];
+    return holes.map(h => cellText(prefix + '-' + type + '-' + h));
+  }
+
+  // applique une rangée de valeurs chargées (10 cases) sur les cases "prefix-type-N" d'un tableau
+  // (ctrl-* ou cur-*) : texte + couleur dynamique, et reflet dans la vue anches pour "cur".
+  function applyLoadedTableRow(prefix, type, values, computeWin){
+    const holes = [1,2,3,4,5,6,7,8,9,10];
+    holes.forEach((h, i) => {
+      const val = values && values[i] !== undefined ? values[i] : '–';
+      const cell = document.getElementById(prefix + '-' + type + '-' + h);
+      if(!cell) return;
+      cell.textContent = (val === '–') ? '' : val;
+      setValueClass(cell, valClass(val));
+      if(computeWin){
+        const num = parseCellNumber(cell.textContent);
+        cell.classList.toggle('win-cell', num !== null && Math.abs(num) <= 1);
+      }
+      if(prefix === 'cur') mirrorReedRemaining(type, h);
+    });
+  }
+
+  // applique une rangée de valeurs chargées sur la base des anches : texte seul, jamais de couleur
+  // dynamique (elle reste unique et discrète, comme le veut sa conception).
+  function applyLoadedReedBase(type, values){
+    const holes = [1,2,3,4,5,6,7,8,9,10];
+    holes.forEach((h, i) => {
+      const val = values && values[i] !== undefined ? values[i] : '–';
+      const reed = document.getElementById('reed-base-' + type + '-' + h);
+      if(reed) reed.textContent = (val === '–') ? '' : val;
+    });
+  }
+
+  function fillOperationsTable(ops){
+    ['A','S'].forEach(type => {
+      (ops[type] || []).forEach((val, i) => {
+        const cell = document.getElementById('op-' + type + '-' + (i+1));
+        if(!cell) return;
+        cell.textContent = (val === '–' || val === undefined) ? '' : val;
+        cell.className = valClass(val);
+      });
+    });
+  }
+
+  // reflète le contenu (texte + couleur) d'une case "Reste à faire" dans sa représentation en
+  // anche correspondante, si elle existe (pour l'instant, seule la ligne des aspirés est dessinée)
+  // copie exacte (texte + classes, donc couleur/vert/sélection) de la case "Reste à faire"
+  // vers sa case-jumelle sous l'anche — même donnée, mêmes propriétés graphiques, même sélection.
+  function mirrorReedRemaining(type, hole){
+    const cell = document.getElementById('cur-' + type + '-' + hole);
+    const mirror = document.getElementById('reed-remaining-' + type + '-' + hole);
+    if(!cell || !mirror) return;
+    mirror.textContent = cell.textContent;
+    mirror.className = 'reed-remaining ' + cell.className;
+  }
+
+  // affiche dans la base de l'anche l'écart brut mesuré (celui indiqué en commentaire),
+  // dans une couleur unique et discrète, sans comportement particulier.
+  function updateReedBase(type, hole, avg){
+    const reed = document.getElementById('reed-base-' + type + '-' + hole);
+    if(!reed) return;
+    reed.textContent = formatCents(avg);
+  }
+
+  function resetOperationsAndControlTables(){
+    ['A','S'].forEach(type => {
+      for(let hole=1; hole<=10; hole++){
+        const cur = document.getElementById('cur-' + type + '-' + hole);
+        const ctrl = document.getElementById('ctrl-' + type + '-' + hole);
+        if(cur){ cur.textContent = ''; cur.className = 'val-empty'; }
+        if(ctrl){ ctrl.textContent = ''; ctrl.className = 'val-empty'; }
+        const reedBase = document.getElementById('reed-base-' + type + '-' + hole);
+        if(reedBase) reedBase.textContent = '';
+        mirrorReedRemaining(type, hole);
+      }
+    });
+  }
+
+  // dès le chargement, une case d'opération à 0, -1 ou +1 est considérée comme quasi déjà bonne :
+  // on marque en vert la case correspondante de "Reste à faire" par anticipation
+  function markPreGoodCells(){
+    ['A','S'].forEach(type => {
+      for(let hole=1; hole<=10; hole++){
+        const opVal = parseCellNumber(document.getElementById('op-' + type + '-' + hole).textContent);
+        const curCell = document.getElementById('cur-' + type + '-' + hole);
+        if(curCell && opVal !== null && Math.abs(opVal) <= 1){
+          curCell.classList.add('win-cell');
+        }
+        mirrorReedRemaining(type, hole);
+      }
+    });
+  }
+
+  let currentData = null;
+  let referenceSequence = { A: [], S: [] }; // séquence de référence chargée depuis le fichier (case par case)
+  let harmonicaSouffleInitial = { A: [], S: [] }; // "HarmonicaSouffle initial" (accordeur, ex-séquence enregistrée) chargé depuis le fichier
+
+  function loadFromData(data){
+    if(typeof recordingActive !== 'undefined' && recordingActive) stopRecording('manual');
+    if(typeof selectedCell !== 'undefined' && selectedCell){
+      const prev = document.getElementById('cur-' + selectedCell.type + '-' + selectedCell.hole);
+      if(prev) prev.classList.remove('cell-selected');
+      selectedCell = null;
+    }
+
+    currentData = data;
+    harmoNameInput.value = data.harmonica || '';
+    if(data.tonalite) keySelect.value = data.tonalite;
+    tuningSelect.value = data.accordage && TUNINGS[data.accordage] ? data.accordage : 'richter';
+    referenceSequence = data.reference && data.reference.A && data.reference.S ? data.reference : { A: [], S: [] };
+    harmonicaSouffleInitial = data.enregistree && data.enregistree.A && data.enregistree.S ? data.enregistree : { A: [], S: [] };
+    if(data.referenceA4){
+      const match = Array.from(refSelect.options).find(o => parseFloat(o.value) === parseFloat(data.referenceA4));
+      if(match) refSelect.value = match.value;
+    }
+    fillOperationsTable(data.operations || { A:[], S:[] });
+    resetOperationsAndControlTables();
+    markPreGoodCells();
+
+    // HarmonicaBox initial (case "ctrl") — vide si absent du fichier
+    const boxInitial = data.harmonicaBoxInitial;
+    ['A','S'].forEach(type => {
+      applyLoadedTableRow('ctrl', type, boxInitial && boxInitial[type]);
+    });
+
+    // Harmonica final — écarts (vue anches) et Reste à faire — vides si absents du fichier
+    const harmonicaFinal = data.harmonicaFinal;
+    ['A','S'].forEach(type => {
+      applyLoadedReedBase(type, harmonicaFinal && harmonicaFinal.ecarts && harmonicaFinal.ecarts[type]);
+      // seulement si la donnée est réellement présente : sinon on garde le pré-marquage déjà fait
+      // par markPreGoodCells() plutôt que d'effacer les cases "Reste à faire"
+      if(harmonicaFinal && harmonicaFinal.resteAFaire && harmonicaFinal.resteAFaire[type]){
+        applyLoadedTableRow('cur', type, harmonicaFinal.resteAFaire[type], true);
+      }
+    });
+
+    renderCorrespondancesBox();
+
+    loadStatus.textContent = 'Harmonica chargé : ' + (data.harmonica || '—');
+    if(typeof deleteBtn !== 'undefined') deleteBtn.disabled = true;
+    if(typeof saveBtn !== 'undefined') saveBtn.style.display = 'inline-block';
+  }
+
+  keySelect.addEventListener('change', renderCorrespondancesBox);
+  renderCorrespondancesBox();
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try{
+        const data = JSON.parse(evt.target.result);
+        loadFromData(data);
+      }catch(err){
+        loadStatus.textContent = "Fichier invalide — vérifie qu'il s'agit bien du fichier .json exporté par l'accordeur.";
+      }
+    };
+    reader.readAsText(file);
+    fileInput.value = ''; // permet de recharger le même fichier plus tard si besoin
+  });
+
+  const saveBtn = document.getElementById('saveBtn');
+
+  function pad2(n){ return String(n).padStart(2, '0'); }
+
+  saveBtn.addEventListener('click', () => {
+    if(!currentData && !harmoNameInput.value.trim()){
+      const now = new Date();
+      const day = pad2(now.getDate());
+      const month = pad2(now.getMonth() + 1);
+      const rand = Math.floor(Math.random() * 10000); // 0 à 9999
+      harmoNameInput.value = keySelect.value + rand + '-' + day + '/' + month;
+    }
+    const base = currentData || {};
+    const data = Object.assign({}, base, {
+      harmonica: harmoNameInput.value,
+      tonalite: keySelect.value,
+      accordage: tuningSelect.value,
+      harmonicaBoxInitial: { A: collectRow('ctrl', 'A'), S: collectRow('ctrl', 'S') },
+      harmonicaFinal: {
+        ecarts: { A: collectRow('reed-base', 'A'), S: collectRow('reed-base', 'S') },
+        resteAFaire: { A: collectRow('cur', 'A'), S: collectRow('cur', 'S') }
+      }
+    });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (harmoNameInput.value || 'harmonica').replace(/[\/\\]/g, '-') + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  // ==== Accordeur (identique à la page d'enregistrement) ====
+  const noteOut = document.getElementById('noteOut');
+  const centsOut = document.getElementById('centsOut');
+  const freqOut = document.getElementById('freqOut');
+  const statusEl = document.getElementById('status');
+  const toggleBtn = document.getElementById('toggle');
+  const needle = document.getElementById('needle');
+  const refSelect = document.getElementById('refFreq');
+  const ticksGroup = document.getElementById('ticks');
+
+  const cx = 210, cy = 190, r = 170;
+  for(let c=-50; c<=50; c+=10){
+    const angle = (c/50) * 90;
+    const rad = (angle - 90) * Math.PI/180;
+    const isMajor = (c % 50 === 0);
+    const inner = isMajor ? r-16 : r-10;
+    const x1 = cx + r*Math.cos(rad), y1 = cy + r*Math.sin(rad);
+    const x2 = cx + inner*Math.cos(rad), y2 = cy + inner*Math.sin(rad);
+    const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+    line.setAttribute("x1",x1); line.setAttribute("y1",y1);
+    line.setAttribute("x2",x2); line.setAttribute("y2",y2);
+    line.setAttribute("stroke", isMajor ? "#8b8d98" : "#3a3d4a");
+    line.setAttribute("stroke-width", isMajor ? 2 : 1);
+    ticksGroup.appendChild(line);
+  }
+
+  let audioCtx, analyser, source, mediaStream;
+  let rafId = null;
+  let listening = false;
+
+  function freqToNoteAndCents(freq, refA4){
+    const semitonesFromA4 = 12 * Math.log2(freq / refA4);
+    const rounded = Math.round(semitonesFromA4);
+    const cents = Math.round((semitonesFromA4 - rounded) * 100);
+    const midi = 69 + rounded;
+    const noteIndex = ((midi % 12) + 12) % 12;
+    const octave = Math.floor(midi / 12) - 1;
+    return { name: NOTE_NAMES[noteIndex] + octave, cents };
+  }
+
+  function midiToFrenchName(midi){
+    const idx = ((midi % 12) + 12) % 12;
+    const octave = Math.floor(midi / 12) - 1;
+    return NOTE_NAMES[idx] + octave;
+  }
+
+  // affichage corrigé quand on connaît déjà la case attendue (sélectionnée par l'utilisateur) :
+  // si l'écart brut dépasse 2 tons (400 ¢), on considère qu'il s'agit bien de la note attendue,
+  // détectée à la mauvaise octave, et on ramène l'écart à sa valeur équivalente la plus proche de 0.
+  function computeExpectedDisplay(freq, expectedMidi, refA4){
+    const rawSemitones = 12 * Math.log2(freq / refA4) - (expectedMidi - 69);
+    let cents = Math.round(rawSemitones * 100);
+    if(Math.abs(cents) > 400) cents = octaveReducedCents(cents);
+    return { name: midiToFrenchName(expectedMidi), cents };
+  }
+
+  // Détection de hauteur par l'algorithme YIN (de Cheveigné & Kawahara, 2002) : plus robuste que
+  // la simple autocorrélation face aux erreurs d'octave et de quinte, grâce à une fonction de
+  // différence normalisée plutôt qu'un pic de corrélation brut.
+  function detectPitch(buf, sampleRate){
+    const SIZE = buf.length;
+    let rms = 0;
+    for(let i=0; i<SIZE; i++){ rms += buf[i]*buf[i]; }
+    rms = Math.sqrt(rms/SIZE);
+    if(rms < 0.01) return -1; // signal trop faible / silence
+
+    const maxLag = Math.floor(SIZE/2);
+    const threshold = 0.15;
+
+    // 1) fonction de différence
+    const d = new Float32Array(maxLag);
+    for(let tau=0; tau<maxLag; tau++){
+      let sum = 0;
+      for(let i=0; i<maxLag; i++){
+        const delta = buf[i] - buf[i+tau];
+        sum += delta*delta;
+      }
+      d[tau] = sum;
+    }
+
+    // 2) fonction de différence normalisée par la moyenne cumulée
+    const cmnd = new Float32Array(maxLag);
+    cmnd[0] = 1;
+    let runningSum = 0;
+    for(let tau=1; tau<maxLag; tau++){
+      runningSum += d[tau];
+      cmnd[tau] = runningSum > 0 ? (d[tau]*tau/runningSum) : 1;
+    }
+
+    // 3) seuil absolu : premier passage sous le seuil, puis minimum local suivant
+    let tauEstimate = -1;
+    for(let tau=2; tau<maxLag; tau++){
+      if(cmnd[tau] < threshold){
+        while(tau+1 < maxLag && cmnd[tau+1] < cmnd[tau]) tau++;
+        tauEstimate = tau;
+        break;
+      }
+    }
+    if(tauEstimate === -1){
+      // repli : aucun passage net sous le seuil, on prend le minimum global (moins fiable)
+      let minVal = Infinity, minTau = -1;
+      for(let tau=2; tau<maxLag; tau++){
+        if(cmnd[tau] < minVal){ minVal = cmnd[tau]; minTau = tau; }
+      }
+      if(minTau === -1 || minVal > 0.5) return -1; // pas assez fiable
+      tauEstimate = minTau;
+    }
+
+    // 4) interpolation parabolique pour affiner
+    let betterTau = tauEstimate;
+    if(tauEstimate > 0 && tauEstimate < maxLag-1){
+      const x0 = cmnd[tauEstimate-1], x1 = cmnd[tauEstimate], x2 = cmnd[tauEstimate+1];
+      const a = (x0 + x2 - 2*x1)/2, b = (x2 - x0)/2;
+      if(a) betterTau = tauEstimate - b/(2*a);
+    }
+
+    return sampleRate / betterTau;
+  }
+
+  function updateGauge(cents){
+    const clamped = Math.max(-50, Math.min(50, cents));
+    const angle = (clamped/50) * 90;
+    needle.style.transform = `rotate(${angle}deg)`;
+    let color = '#ede9df';
+    if(Math.abs(cents) <= 5) color = 'var(--in-tune)';
+    else if(Math.abs(cents) > 25) color = 'var(--flat-sharp)';
+    noteOut.style.color = color;
+  }
+
+  function process(){
+    const buf = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(buf);
+    const freq = detectPitch(buf, audioCtx.sampleRate);
+
+    if(freq !== -1 && freq > 60 && freq < 3200){
+      const refA4 = parseFloat(refSelect.value);
+      const expectedMidi = (recordingActive && selectedCell)
+        ? (selectedCell.type === 'A' ? expectedDrawMidi : expectedBlowMidi)[selectedCell.hole - 1]
+        : null;
+      const { name, cents } = expectedMidi !== null
+        ? computeExpectedDisplay(freq, expectedMidi, refA4)
+        : freqToNoteAndCents(freq, refA4);
+      noteOut.textContent = name;
+      freqOut.textContent = freq.toFixed(1) + ' Hz';
+      updateGauge(cents);
+      if(cents === 0){
+        centsOut.innerHTML = '<b>0 ¢</b> — juste';
+      } else if(Math.abs(cents) <= 5){
+        const sign = cents > 0 ? '+' : '−';
+        centsOut.innerHTML = '<b>' + sign + Math.abs(cents) + ' ¢</b> — juste';
+      } else {
+        const dir = cents > 0 ? 'Descendre' : 'Monter';
+        centsOut.innerHTML = dir + ' de <b>' + Math.abs(cents) + ' ¢</b>';
+      }
+      if(recordingActive) recordFrame(freq, performance.now());
+    } else {
+      centsOut.textContent = 'en écoute…';
+      freqOut.innerHTML = '&nbsp;';
+      if(recordingActive) recordFrame(-1, performance.now());
+    }
+    rafId = requestAnimationFrame(process);
+  }
+
+  async function start(){
+    try{
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: {
+        echoCancellation: false, noiseSuppression: false, autoGainControl: false
+      }});
+    }catch(err){
+      statusEl.textContent = "Accès au micro refusé ou indisponible.";
+      return;
+    }
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    source = audioCtx.createMediaStreamSource(mediaStream);
+    source.connect(analyser);
+
+    listening = true;
+    toggleBtn.textContent = 'Couper le micro';
+    toggleBtn.classList.add('listening');
+    statusEl.textContent = '';
+    process();
+  }
+
+  function stop(){
+    listening = false;
+    if(rafId) cancelAnimationFrame(rafId);
+    if(mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+    if(audioCtx) audioCtx.close();
+    toggleBtn.textContent = 'Activer le micro';
+    toggleBtn.classList.remove('listening');
+    noteOut.textContent = '—';
+    noteOut.style.color = 'var(--text)';
+    centsOut.textContent = 'en attente du signal';
+    freqOut.innerHTML = '&nbsp;';
+    needle.style.transform = 'rotate(0deg)';
+    if(recordingActive) stopRecording('mic-off');
+  }
+
+  toggleBtn.addEventListener('click', () => {
+    if(listening) stop(); else start();
+  });
+
+  // ==== Enregistrement d'une case sélectionnée manuellement ====
+  const recordBtn = document.getElementById('recordBtn');
+  const recordBtnText = document.getElementById('recordBtnText');
+  const recordStatus = document.getElementById('recordStatus');
+
+  function formatCents(n){ return n > 0 ? ('+' + n) : String(n); }
+  function parseCellNumber(text){
+    const t = (text || '').trim();
+    if(t === '' || t === '–') return null;
+    return parseInt(t, 10);
+  }
+
+  const PLAY_GAP_MS = 300;           // silence court = fin d'un jeu de note
+  const FINALIZE_SILENCE_MS = 3000;  // 3s sans note = on inscrit les données de la case en cours
+  const PAUSE_SILENCE_MS = 7000;     // 7s sans note = pause de l'enregistrement
+
+  let recordingActive = false;
+  let playInProgress = false;
+  let currentPlaySamples = [];
+  let lastValidSampleAt = 0;
+  let accumulatedDeviations = [];   // écarts en cents (par rapport à la note attendue) de chaque jeu
+  let targetWasEmpty = true;        // la case était-elle vide au moment de la sélection ?
+  let isPaused = false;             // en pause (silence ou manuel)
+  let pausedManually = false;       // true si la pause a été déclenchée par l'utilisateur (pas de reprise auto)
+  const pauseBtn = document.getElementById('pauseBtn');
+
+  function updatePauseButtonUI(){
+    pauseBtn.classList.toggle('active', isPaused);
+    pauseBtn.disabled = !recordingActive;
+  }
+  let expectedBlowMidi = [];
+  let expectedDrawMidi = [];
+
+  // ---- Sélection d'une case (persistante : ne change que si l'utilisateur en clique une autre) ----
+  const deleteBtn = document.getElementById('deleteBtn');
+  let selectedCell = null; // { type, hole } — case actuellement encadrée, sert à la fois de cible
+                            // d'enregistrement et de cible de suppression
+
+  function targetLabel(t){ return (t.type === 'A' ? 'Aspiré' : 'Soufflé') + ' n°' + t.hole; }
+
+  function isCurCellEmpty(type, hole){
+    const cell = document.getElementById('cur-' + type + '-' + hole);
+    return cell && cell.textContent.trim() === '';
+  }
+
+  // écrit la mesure brute dans "HarmonicaBox initial" (référence/point de départ pour cette case)
+  function writeResult(target, value){
+    const text = formatCents(value);
+    const cls = value === 0 ? 'val-0' : (value > 0 ? 'val-pos' : 'val-neg');
+    const ctrlCell = document.getElementById('ctrl-' + target.type + '-' + target.hole);
+    ctrlCell.textContent = text; ctrlCell.className = cls;
+  }
+
+  // affiche dans "Reste à faire" ce qu'il reste à faire pour appliquer l'accordage
+  // d'"Opérations à réaliser" sur "HarmonicaBox initial" :
+  //   reste à faire = opérations à réaliser + harmonica de contrôle - écart mesuré (avgRaw)
+  // passe la case en vert quand ce reste est entre -1 et +1.
+  function setValueClass(cell, cls){
+    cell.classList.remove('val-pos', 'val-neg', 'val-0', 'val-empty');
+    cell.classList.add(cls);
+  }
+
+  function displayRemaining(target, avgRaw){
+    const opVal = parseCellNumber(document.getElementById('op-' + target.type + '-' + target.hole).textContent);
+    const ctrlVal = parseCellNumber(document.getElementById('ctrl-' + target.type + '-' + target.hole).textContent);
+    const cell = document.getElementById('cur-' + target.type + '-' + target.hole);
+    if(opVal === null || ctrlVal === null){
+      cell.textContent = '';
+      setValueClass(cell, 'val-empty');
+      cell.classList.remove('win-cell');
+      mirrorReedRemaining(target.type, target.hole);
+      return;
+    }
+    const remaining = opVal + ctrlVal - avgRaw;
+    cell.textContent = formatCents(remaining);
+    setValueClass(cell, remaining === 0 ? 'val-0' : (remaining > 0 ? 'val-pos' : 'val-neg'));
+    cell.classList.toggle('win-cell', Math.abs(remaining) <= 1);
+    mirrorReedRemaining(target.type, target.hole);
+  }
+
+  // ramène un écart en cents à sa valeur équivalente la plus proche de 0, en ignorant les
+  // décalages d'octave (1200¢), double octave (2400¢), triple octave (3600¢)...
+  function octaveReducedCents(v){
+    let r = v % 1200;
+    if(r > 600) r -= 1200;
+    if(r < -600) r += 1200;
+    return r;
+  }
+
+  // moyenne "robuste" d'une série de mesures : calcule l'écart-type (méthode classique,
+  // population complète), écarte les valeurs en dehors de [moyenne - 1 écart-type, moyenne + 1
+  // écart-type], puis refait la moyenne sur les valeurs restantes. Avec un seul point, ou si le
+  // filtre viderait tout l'échantillon, on revient à la moyenne simple.
+  function robustAverage(values){
+    if(values.length === 0) return 0;
+    const mean = values.reduce((a,b) => a+b, 0) / values.length;
+    if(values.length < 2) return Math.round(mean);
+    const variance = values.reduce((a,b) => a + (b-mean)*(b-mean), 0) / values.length;
+    const std = Math.sqrt(variance);
+    const filtered = values.filter(v => v >= mean-std && v <= mean+std);
+    const finalSet = filtered.length > 0 ? filtered : values;
+    const finalMean = finalSet.reduce((a,b) => a+b, 0) / finalSet.length;
+    return Math.round(finalMean);
+  }
+
+  function computeAndAccumulate(target, avgFreq){
+    const expectedMidi = (target.type === 'A' ? expectedDrawMidi : expectedBlowMidi)[target.hole - 1];
+    const refA4 = parseFloat(refSelect.value);
+    const rawCents = Math.round((12*Math.log2(avgFreq/refA4) - (expectedMidi-69)) * 100);
+    const cents = octaveReducedCents(rawCents); // une octave ou plus d'écart = considérée comme la bonne note
+    accumulatedDeviations.push(cents);
+    const avg = robustAverage(accumulatedDeviations);
+    updateReedBase(target.type, target.hole, avg);
+
+    if(targetWasEmpty){
+      recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — ' + accumulatedDeviations.length + ' mesure(s) prise(s)'
+        + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>';
+    } else {
+      displayRemaining(target, avg);
+      const cell = document.getElementById('cur-' + target.type + '-' + target.hole);
+      if(cell.classList.contains('win-cell')){
+        recordStatus.innerHTML = '<b style="color:var(--in-tune)">Gagné</b> — case ' + targetLabel(target) + '.'
+          + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>';
+      } else {
+        recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — moyenne mise à jour en direct (' + accumulatedDeviations.length + ' mesure(s))'
+          + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>';
+      }
+    }
+  }
+
+  // change la case sélectionnée (utilisé aussi bien pendant l'enregistrement que hors
+  // enregistrement) — le surlignage ne change QUE lors d'un appel à cette fonction.
+  function setSelectedCell(type, hole){
+    if(selectedCell){
+      const prev = document.getElementById('cur-' + selectedCell.type + '-' + selectedCell.hole);
+      if(prev) prev.classList.remove('cell-selected');
+      mirrorReedRemaining(selectedCell.type, selectedCell.hole);
+    }
+    selectedCell = { type, hole };
+    const cell = document.getElementById('cur-' + type + '-' + hole);
+    cell.classList.add('cell-selected');
+    mirrorReedRemaining(type, hole);
+    deleteBtn.disabled = recordingActive; // une case est sélectionnée : la suppression devient possible hors enregistrement
+  }
+
+  // prépare l'accumulation pour la case sélectionnée (appelé au début d'un enregistrement sur
+  // cette case, ou après qu'une mesure précédente a été inscrite et qu'on continue sur la même case)
+  function armSelectedCellForRecording(){
+    if(!selectedCell) return;
+    targetWasEmpty = isCurCellEmpty(selectedCell.type, selectedCell.hole);
+    accumulatedDeviations = [];
+    playInProgress = false;
+    currentPlaySamples = [];
+    recordStatus.classList.remove('error');
+    recordStatus.innerHTML = 'Case sélectionnée : <b>' + targetLabel(selectedCell) + '</b> — joue la note à enregistrer';
+  }
+
+  // inscrit les données accumulées pour la case sélectionnée (si elle était vide, on écrit aussi
+  // "HarmonicaBox initial"), SANS toucher au surlignage — appelé sur silence, changement de case,
+  // pause ou arrêt de l'enregistrement. La case reste sélectionnée jusqu'à ce que l'utilisateur en
+  // choisisse explicitement une autre.
+  function finalizeSelectedCellData(){
+    if(!selectedCell) return;
+    if(accumulatedDeviations.length > 0 && targetWasEmpty){
+      const avg = robustAverage(accumulatedDeviations);
+      writeResult(selectedCell, avg);
+      displayRemaining(selectedCell, avg); // reste à faire = opérations + contrôle - écart (silencieux, pas de "Gagné")
+    }
+    // si la case n'était pas vide, elle a déjà été mise à jour en direct à chaque jeu : rien à refaire ici
+    accumulatedDeviations = [];
+    playInProgress = false;
+    currentPlaySamples = [];
+    // on réévalue l'état "vide" pour la suite (si la case vient d'être remplie, une reprise sur
+    // cette même case basculera désormais en mode "déjà mesurée")
+    targetWasEmpty = isCurCellEmpty(selectedCell.type, selectedCell.hole);
+  }
+
+  // calcule l'écart moyen du jeu de note qui vient de se terminer (silence de 300ms) et l'accumule
+  // pour la case actuellement sélectionnée
+  function finalizeCurrentPlaySamples(){
+    if(currentPlaySamples.length === 0) return;
+    const t0 = currentPlaySamples[0].t;
+    const t1 = currentPlaySamples[currentPlaySamples.length-1].t;
+    const duration = t1 - t0;
+    let mid = currentPlaySamples.filter(s => s.t >= t0 + duration*0.25 && s.t <= t0 + duration*0.75);
+    if(mid.length === 0) mid = currentPlaySamples; // jeu trop court : on garde tout
+    const avgFreq = mid.reduce((a,s) => a + s.freq, 0) / mid.length;
+    currentPlaySamples = [];
+
+    if(recordingActive && selectedCell){
+      computeAndAccumulate(selectedCell, avgFreq);
+    }
+  }
+
+  deleteBtn.addEventListener('click', () => {
+    if(!selectedCell) return;
+    const { type, hole } = selectedCell;
+    const curCell = document.getElementById('cur-' + type + '-' + hole);
+    const ctrlCell = document.getElementById('ctrl-' + type + '-' + hole);
+    curCell.textContent = ''; setValueClass(curCell, 'val-empty'); curCell.classList.remove('win-cell');
+    ctrlCell.textContent = ''; ctrlCell.className = 'val-empty';
+    const reedBase = document.getElementById('reed-base-' + type + '-' + hole);
+    if(reedBase) reedBase.textContent = '';
+    mirrorReedRemaining(type, hole);
+    // la case reste sélectionnée (encadrée) après suppression — seul un clic sur une autre case change ça
+  });
+
+  // un clic sur une case en fait la nouvelle case sélectionnée. Si un enregistrement est en cours
+  // et qu'une autre case était déjà sélectionnée, ses données sont d'abord inscrites.
+  function handleCellClick(type, hole){
+    if(selectedCell && selectedCell.type === type && selectedCell.hole === hole) return; // déjà sélectionnée
+
+    if(recordingActive && selectedCell){
+      finalizeSelectedCellData();
+    }
+    setSelectedCell(type, hole);
+    if(recordingActive){
+      if(isPaused){ isPaused = false; pausedManually = false; updatePauseButtonUI(); }
+      armSelectedCellForRecording();
+    }
+  }
+
+  ['A','S'].forEach(type => {
+    for(let hole=1; hole<=10; hole++){
+      const cell = document.getElementById('cur-' + type + '-' + hole);
+      if(!cell) continue;
+      cell.addEventListener('click', () => handleCellClick(type, hole));
+      const mirror = document.getElementById('reed-remaining-' + type + '-' + hole);
+      if(mirror) mirror.addEventListener('click', () => handleCellClick(type, hole));
+    }
+  });
+
+  function recordFrame(freq, now){
+    if(isPaused && pausedManually) return; // pause manuelle : on ignore tout jusqu'à la reprise par l'utilisateur
+
+    if(freq !== -1){
+      lastValidSampleAt = now;
+      if(isPaused){ isPaused = false; updatePauseButtonUI(); } // reprise automatique après une pause pour silence
+      if(!playInProgress){ playInProgress = true; currentPlaySamples = []; }
+      currentPlaySamples.push({ freq, t: now });
+    } else {
+      if(playInProgress && (now - lastValidSampleAt) > PLAY_GAP_MS){
+        playInProgress = false;
+        finalizeCurrentPlaySamples();
+      }
+      if(recordingActive && !isPaused){
+        const silence = now - lastValidSampleAt;
+        if(selectedCell && accumulatedDeviations.length > 0 && silence > FINALIZE_SILENCE_MS){
+          const doneTarget = selectedCell;
+          finalizeSelectedCellData();
+          recordStatus.classList.remove('error');
+          recordStatus.innerHTML = 'Case <b>' + targetLabel(doneTarget) + '</b> enregistrée (silence). Sélectionne la prochaine case, ou continue sur celle-ci.';
+        }
+        if(silence > PAUSE_SILENCE_MS){
+          if(selectedCell) finalizeSelectedCellData(); // défensif, normalement déjà fait à 3s
+          isPaused = true;
+          updatePauseButtonUI();
+          recordStatus.classList.remove('error');
+          recordStatus.innerHTML = 'Aucune note depuis 7 s — en pause. Rejoue une note pour reprendre.';
+        }
+      }
+    }
+  }
+
+  function stopRecording(reason){
+    const finishedTarget = selectedCell;
+    const wasEmpty = targetWasEmpty;
+    const lastAvg = accumulatedDeviations.length > 0
+      ? robustAverage(accumulatedDeviations)
+      : null;
+
+    if(selectedCell) finalizeSelectedCellData(); // écrit les données de la case en cours s'il y en avait
+
+    recordingActive = false;
+    playInProgress = false;
+    currentPlaySamples = [];
+    accumulatedDeviations = [];
+    targetWasEmpty = true;
+    isPaused = false;
+    pausedManually = false;
+    updatePauseButtonUI();
+    recordBtn.classList.remove('recording');
+    recordBtnText.textContent = 'Enregistrement';
+    deleteBtn.disabled = !selectedCell;
+
+    const ecartLine = (finishedTarget && lastAvg !== null)
+      ? ('<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(lastAvg) + ' ¢</b>')
+      : '';
+
+    if(reason === 'manual'){
+      recordStatus.classList.remove('error');
+      recordStatus.innerHTML = (finishedTarget
+        ? 'Arrêt manuel — case <b>' + targetLabel(finishedTarget) + '</b> ' + (wasEmpty ? 'enregistrée.' : 'mise à jour.')
+        : 'Enregistrement arrêté.') + ecartLine;
+    } else {
+      recordStatus.innerHTML = '&nbsp;';
+    }
+  }
+
+  recordBtn.addEventListener('click', async () => {
+    if(recordingActive){
+      stopRecording('manual');
+      return;
+    }
+    if(!listening){
+      await start();
+      if(!listening) return; // permission refusée
+    }
+    const offset = KEY_OFFSETS[keySelect.value];
+    expectedBlowMidi = BLOW_C_MIDI.map((m,i) => m + offset + tuningAdjust(tuningSelect.value, 'S', i+1));
+    expectedDrawMidi = DRAW_C_MIDI.map((m,i) => m + offset + tuningAdjust(tuningSelect.value, 'A', i+1));
+
+    deleteBtn.disabled = true; // la suppression reste indisponible pendant l'enregistrement
+
+    recordingActive = true;
+    playInProgress = false;
+    currentPlaySamples = [];
+    accumulatedDeviations = [];
+    targetWasEmpty = true;
+    isPaused = false;
+    pausedManually = false;
+    updatePauseButtonUI();
+    lastValidSampleAt = performance.now();
+    recordBtn.classList.add('recording');
+    recordBtnText.textContent = 'Arrêter';
+
+    if(selectedCell){
+      // une case était déjà sélectionnée (encadrée) avant de lancer l'enregistrement : on l'utilise directement
+      armSelectedCellForRecording();
+    } else {
+      recordStatus.classList.remove('error');
+      recordStatus.innerHTML = 'Sélectionne la case que tu vas traiter, puis joue la note.';
+    }
+  });
+
+  pauseBtn.addEventListener('click', () => {
+    if(!recordingActive) return;
+    if(isPaused){
+      isPaused = false;
+      pausedManually = false;
+      updatePauseButtonUI();
+      recordStatus.classList.remove('error');
+      recordStatus.innerHTML = selectedCell
+        ? ('Reprise sur <b>' + targetLabel(selectedCell) + '</b>.')
+        : 'Reprise — sélectionne une case.';
+    } else {
+      if(selectedCell) finalizeSelectedCellData(); // cohérent avec la pause automatique
+      isPaused = true;
+      pausedManually = true;
+      updatePauseButtonUI();
+      recordStatus.innerHTML = 'En pause (manuel) — clique à nouveau sur ce bouton pour reprendre.';
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

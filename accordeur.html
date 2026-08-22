@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Accordeur — détection de hauteur en temps réel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #14151a;
+    --panel: #1c1e26;
+    --panel-line: #2a2d38;
+    --gold: #c9a227;
+    --gold-dim: #8a721e;
+    --in-tune: #6fcf97;
+    --flat-sharp: #d64550;
+    --text: #ede9df;
+    --text-dim: #8b8d98;
+  }
+  *{ box-sizing: border-box; }
+  html,body{
+    margin:0; padding:0; height:100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    display:flex; align-items:flex-start; justify-content:center;
+  }
+  body{ min-height:100vh; padding: 24px; }
+
+  .layout{
+    display:flex;
+    align-items:flex-start;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content:center;
+    max-width: 940px;
+    width:100%;
+  }
+
+  .rack{
+    width: 100%;
+    max-width: 440px;
+    flex: 1 1 380px;
+    background: linear-gradient(180deg, var(--panel), #171922);
+    border: 1px solid var(--panel-line);
+    border-radius: 18px;
+    padding: 28px 26px 24px;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.03);
+    position: relative;
+  }
+
+  .rack::before{
+    content:"";
+    position:absolute; top:14px; left:50%; transform:translateX(-50%);
+    width:36px; height:4px; border-radius:2px;
+    background: var(--panel-line);
+  }
+
+  .eyebrow{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    text-align:center;
+    margin: 10px 0 4px;
+  }
+
+  .key-row{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap: 8px;
+    margin: 16px 0 4px;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .key-row select{
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--panel-line);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .gauge-wrap{ margin: 18px 0 6px; position:relative; }
+  svg#gauge{ width:100%; height:auto; display:block; }
+
+  .needle{
+    transform-origin: 210px 190px;
+    transition: transform 90ms ease-out;
+  }
+
+  .zone-label{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 10px;
+    fill: var(--text-dim);
+    letter-spacing: 0.05em;
+  }
+
+  .readout{
+    text-align:center;
+    margin-top: -6px;
+  }
+
+  .note{
+    font-size: 64px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    transition: color 150ms ease;
+    min-height: 70px;
+  }
+
+  .cents{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-dim);
+    margin-top: 4px;
+    letter-spacing: 0.02em;
+  }
+  .cents b{ color: var(--text); }
+
+  .freq{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  .controls{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 18px;
+    border-top: 1px solid var(--panel-line);
+  }
+
+  .ref-tune{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    display:flex; align-items:center; gap:8px;
+  }
+  .ref-tune select{
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--panel-line);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+
+  button#toggle{
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.01em;
+    color: #14151a;
+    background: var(--gold);
+    border: none;
+    border-radius: 999px;
+    padding: 11px 22px;
+    cursor: pointer;
+    transition: transform 120ms ease, background 120ms ease;
+  }
+  button#toggle:hover{ background: #ddb731; }
+  button#toggle:active{ transform: scale(0.97); }
+  button#toggle.listening{
+    background: transparent;
+    color: var(--flat-sharp);
+    border: 1px solid var(--flat-sharp);
+  }
+  button#toggle:focus-visible{ outline: 2px solid var(--gold); outline-offset: 3px; }
+
+  .status{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-align:center;
+    color: var(--text-dim);
+    margin-top: 14px;
+    min-height: 14px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .needle{ transition: none; }
+  }
+
+  /* --- Panneau séquence --- */
+  .seq-panel{
+    width: 100%;
+    background: linear-gradient(180deg, var(--panel), #171922);
+    border: 1px solid var(--panel-line);
+    border-radius: 18px;
+    padding: 26px 24px 24px;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+
+  .seq-header{
+    display:flex;
+    align-items:center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+
+  .seq-label{
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .seq-header-spacer{
+    flex: 1 1 auto;
+    display:flex;
+    justify-content:center;
+  }
+
+  .seq-status{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align:center;
+    min-height: 14px;
+    margin-bottom: 16px;
+  }
+  .seq-status b{ color: var(--gold); }
+  .seq-status.error{ color: var(--flat-sharp); }
+  .seq-status.error b{ color: var(--flat-sharp); }
+
+  .mode-row{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap: 22px;
+    margin-bottom: 14px;
+  }
+  .mode-option{
+    display:flex; align-items:center; gap:6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  .mode-option input[type="radio"]{
+    accent-color: var(--gold);
+    width: 14px; height: 14px;
+    cursor: pointer;
+  }
+  .mode-option input[type="radio"]:checked + span{ color: var(--text); }
+
+  .right-column{
+    display:flex;
+    flex-direction: column;
+    gap: 24px;
+    flex: 1 1 420px;
+    max-width: 480px;
+  }
+
+  .left-column{
+    display:flex;
+    flex-direction: column;
+    gap: 24px;
+    flex: 1 1 380px;
+    max-width: 440px;
+  }
+
+  .harmo-id-panel{
+    width: 100%;
+    background: linear-gradient(180deg, var(--panel), #171922);
+    border: 1px solid var(--panel-line);
+    border-radius: 18px;
+    padding: 22px 24px;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+
+  .harmo-id-row{
+    display:flex;
+    align-items:center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+
+  .harmo-name-input{
+    flex: 1 1 160px;
+    min-width: 140px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--panel-line);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+  .harmo-name-input:focus-visible{ outline: 2px solid var(--gold); outline-offset: 2px; }
+
+  button.record-btn{
+    display:flex; align-items:center; gap:8px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: #14151a;
+    background: var(--gold);
+    border: none;
+    border-radius: 999px;
+    padding: 10px 18px;
+    cursor: pointer;
+    transition: transform 120ms ease, background 120ms ease;
+  }
+  button.record-btn:hover{ background: #ddb731; }
+  button.record-btn:active{ transform: scale(0.97); }
+  button.record-btn:focus-visible{ outline: 2px solid var(--gold); outline-offset: 3px; }
+  button.record-btn .dot{
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--flat-sharp);
+    flex-shrink: 0;
+  }
+  button.record-btn.recording{
+    background: transparent;
+    color: var(--flat-sharp);
+    border: 1px solid var(--flat-sharp);
+  }
+  button.record-btn.recording .dot{
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{ opacity:1; } 50%{ opacity:0.25; }
+  }
+
+  .harmo-block + .harmo-block{ margin-top: 22px; }
+
+  .harmo-title{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  table.harmo{
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  table.harmo th, table.harmo td{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    text-align: center;
+    padding: 8px 2px;
+    border: 1px solid var(--panel-line);
+  }
+  table.harmo thead th{
+    color: var(--text-dim);
+    font-weight: 500;
+    background: rgba(255,255,255,0.02);
+  }
+  table.harmo thead th:first-child{
+    background: transparent;
+    border: none;
+  }
+  table.harmo tbody th{
+    color: var(--gold);
+    font-weight: 700;
+    width: 26px;
+    background: rgba(201,162,39,0.06);
+  }
+  table.harmo tbody td{ color: var(--text); }
+  table.harmo tbody td.val-0{ color: var(--text-dim); }
+  table.harmo tbody td.val-neg{ color: var(--flat-sharp); }
+  table.harmo tbody td.val-pos{ color: var(--in-tune); }
+  table.harmo tbody td.val-empty{ color: var(--text-dim); }
+
+  table.harmo tbody td.target-cell{
+    background: rgba(201,162,39,0.18);
+    box-shadow: inset 0 0 0 1.5px var(--gold);
+    animation: target-pulse 1.3s ease-in-out infinite;
+  }
+  @keyframes target-pulse{
+    0%,100%{ background: rgba(201,162,39,0.10); }
+    50%{ background: rgba(201,162,39,0.28); }
+  }
+  table.harmo tbody td.flash{
+    animation: flash-capture 600ms ease-out;
+  }
+  @keyframes flash-capture{
+    0%{ background: rgba(111,207,151,0.5); }
+    100%{ background: transparent; }
+  }
+  table.harmo tbody td.spotted-cell{
+    box-shadow: inset 0 0 0 2px var(--gold);
+  }
+
+  table.harmo tbody td.ref-error{
+    background: rgba(214,69,80,0.22) !important;
+    box-shadow: inset 0 0 0 1.5px var(--flat-sharp);
+    color: var(--flat-sharp) !important;
+  }
+
+  table.harmo tbody td[id^="empty-"]{
+    cursor: pointer;
+  }
+  table.harmo tbody td[id^="empty-"]:hover{
+    background: rgba(255,255,255,0.06);
+  }
+  table.harmo tbody td.cell-selected{
+    box-shadow: inset 0 0 0 2px var(--gold);
+    background: rgba(201,162,39,0.14);
+  }
+
+  .error-panel{
+    width: 100%;
+    max-width: 260px;
+    flex: 1 1 220px;
+    background: linear-gradient(180deg, var(--panel), #171922);
+    border: 1px solid var(--panel-line);
+    border-radius: 18px;
+    padding: 26px 22px 24px;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  .error-list{
+    display:flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .error-empty{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .error-item{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--flat-sharp);
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--panel-line);
+  }
+  .error-item:last-child{ border-bottom: none; padding-bottom: 0; }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+<div class="left-column">
+
+<div class="harmo-id-panel">
+  <div class="harmo-id-row">
+    <span class="seq-label">Numéro d'harmonica&nbsp;:</span>
+    <input type="text" id="harmoName" class="harmo-name-input">
+  </div>
+  <div class="key-row">
+    <span>Tonalité de l'harmonica&nbsp;:</span>
+    <select id="harmoKey">
+      <option value="G">G</option>
+      <option value="Ab">Ab</option>
+      <option value="A">A</option>
+      <option value="Bb">Bb</option>
+      <option value="B">B</option>
+      <option value="C" selected>C</option>
+      <option value="Db">Db</option>
+      <option value="D">D</option>
+      <option value="Eb">Eb</option>
+      <option value="E">E</option>
+      <option value="F">F</option>
+      <option value="F#">F#</option>
+    </select>
+  </div>
+  <div class="key-row">
+    <span>Accordage&nbsp;:</span>
+    <select id="harmoTuning">
+      <option value="richter" selected>Richter</option>
+      <option value="lydian_country">Lydien Country</option>
+      <option value="paddy_richter">Paddy Richter</option>
+      <option value="minor_harmonic">Mineur Harmonique</option>
+      <option value="minor_natural">Mineur Naturel (vHohner)</option>
+    </select>
+  </div>
+  <button class="record-btn" id="exportBtn" style="width:100%; justify-content:center; margin-top:16px; background:transparent; color:var(--gold); border:1px solid var(--gold);">Exporter les données (fichier)</button>
+</div>
+
+<div class="rack">
+  <div class="eyebrow">Accordeur chromatique</div>
+
+  <div class="gauge-wrap">
+    <svg id="gauge" viewBox="0 0 420 220">
+      <!-- arc de fond -->
+      <path d="M 40 190 A 170 170 0 0 1 380 190" fill="none" stroke="#2a2d38" stroke-width="14" stroke-linecap="round"/>
+      <!-- zone juste (vert) centrée -->
+      <path id="okZone" d="M 189 21.6 A 170 170 0 0 1 231 21.6" fill="none" stroke="#6fcf97" stroke-width="14" stroke-linecap="round" opacity="0.55"/>
+      <!-- graduations -->
+      <g id="ticks"></g>
+      <text x="40" y="212" class="zone-label" text-anchor="middle">-50¢</text>
+      <text x="210" y="14" class="zone-label" text-anchor="middle">0</text>
+      <text x="380" y="212" class="zone-label" text-anchor="middle">+50¢</text>
+      <!-- aiguille -->
+      <g class="needle" id="needle">
+        <line x1="210" y1="190" x2="210" y2="45" stroke="#ede9df" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="210" cy="190" r="7" fill="#c9a227"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="readout">
+    <div class="note" id="noteOut">—</div>
+    <div class="cents" id="centsOut">en attente du signal</div>
+    <div class="freq" id="freqOut">&nbsp;</div>
+  </div>
+
+  <div class="controls">
+    <div class="ref-tune">
+      <span>La4 =</span>
+      <select id="refFreq">
+        <option value="435">435 Hz</option>
+        <option value="440">440 Hz</option>
+        <option value="442">442 Hz</option>
+        <option value="443" selected>443 Hz</option>
+        <option value="444">444 Hz</option>
+      </select>
+    </div>
+    <button id="toggle">Activer le micro</button>
+  </div>
+
+  <div class="status" id="status">&nbsp;</div>
+</div>
+
+</div>
+
+<div class="right-column">
+
+<div class="seq-panel">
+  <div class="seq-header">
+    <span class="seq-label">Enregistrer la séquence&nbsp;:</span>
+    <span class="seq-header-spacer">
+      <button class="record-btn" id="recordBtn"><span class="dot"></span><span class="record-btn-text">Enregistrer</span></button>
+    </span>
+  </div>
+  <div class="seq-status" id="seqStatus">&nbsp;</div>
+
+  <div class="harmo-block">
+    <div class="harmo-title">Séquence de référence</div>
+    <table class="harmo">
+      <thead>
+        <tr>
+          <th></th>
+          <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th>
+          <th>6</th><th>7</th><th>8</th><th>9</th><th>10</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>A</th>
+          <td class="val-0" id="ref-A-1">0</td><td class="val-0" id="ref-A-2">0</td><td class="val-neg" id="ref-A-3">-5</td><td class="val-0" id="ref-A-4">0</td><td class="val-neg" id="ref-A-5">-5</td>
+          <td class="val-0" id="ref-A-6">0</td><td class="val-0" id="ref-A-7">0</td><td class="val-pos" id="ref-A-8">+3</td><td class="val-0" id="ref-A-9">0</td><td class="val-pos" id="ref-A-10">+5</td>
+        </tr>
+        <tr>
+          <th>S</th>
+          <td class="val-0" id="ref-S-1">0</td><td class="val-neg" id="ref-S-2">-5</td><td class="val-0" id="ref-S-3">0</td><td class="val-0" id="ref-S-4">0</td><td class="val-neg" id="ref-S-5">-5</td>
+          <td class="val-0" id="ref-S-6">0</td><td class="val-pos" id="ref-S-7">+3</td><td class="val-neg" id="ref-S-8">-2</td><td class="val-pos" id="ref-S-9">+3</td><td class="val-pos" id="ref-S-10">+5</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="harmo-block">
+    <div class="harmo-title">HarmonicaSouffle initial</div>
+    <table class="harmo">
+      <thead>
+        <tr>
+          <th></th>
+          <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th>
+          <th>6</th><th>7</th><th>8</th><th>9</th><th>10</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>A</th>
+          <td class="val-empty" id="empty-A-1"></td><td class="val-empty" id="empty-A-2"></td><td class="val-empty" id="empty-A-3"></td><td class="val-empty" id="empty-A-4"></td><td class="val-empty" id="empty-A-5"></td>
+          <td class="val-empty" id="empty-A-6"></td><td class="val-empty" id="empty-A-7"></td><td class="val-empty" id="empty-A-8"></td><td class="val-empty" id="empty-A-9"></td><td class="val-empty" id="empty-A-10"></td>
+        </tr>
+        <tr>
+          <th>S</th>
+          <td class="val-empty" id="empty-S-1"></td><td class="val-empty" id="empty-S-2"></td><td class="val-empty" id="empty-S-3"></td><td class="val-empty" id="empty-S-4"></td><td class="val-empty" id="empty-S-5"></td>
+          <td class="val-empty" id="empty-S-6"></td><td class="val-empty" id="empty-S-7"></td><td class="val-empty" id="empty-S-8"></td><td class="val-empty" id="empty-S-9"></td><td class="val-empty" id="empty-S-10"></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="seq-panel">
+  <div class="harmo-title" style="font-size:11px; margin-bottom:14px;">Opérations à réaliser</div>
+  <div class="harmo-block">
+    <table class="harmo">
+      <thead>
+        <tr>
+          <th></th>
+          <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th>
+          <th>6</th><th>7</th><th>8</th><th>9</th><th>10</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>A</th>
+          <td class="val-empty" id="op-A-1"></td><td class="val-empty" id="op-A-2"></td><td class="val-empty" id="op-A-3"></td><td class="val-empty" id="op-A-4"></td><td class="val-empty" id="op-A-5"></td>
+          <td class="val-empty" id="op-A-6"></td><td class="val-empty" id="op-A-7"></td><td class="val-empty" id="op-A-8"></td><td class="val-empty" id="op-A-9"></td><td class="val-empty" id="op-A-10"></td>
+        </tr>
+        <tr>
+          <th>S</th>
+          <td class="val-empty" id="op-S-1"></td><td class="val-empty" id="op-S-2"></td><td class="val-empty" id="op-S-3"></td><td class="val-empty" id="op-S-4"></td><td class="val-empty" id="op-S-5"></td>
+          <td class="val-empty" id="op-S-6"></td><td class="val-empty" id="op-S-7"></td><td class="val-empty" id="op-S-8"></td><td class="val-empty" id="op-S-9"></td><td class="val-empty" id="op-S-10"></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<div class="error-panel">
+  <div class="harmo-title" style="font-size:11px; margin-bottom:14px;">Messages d'erreur</div>
+  <div class="error-list" id="errorList">
+    <div class="error-empty">Aucune erreur pour l'instant.</div>
+  </div>
+  <button class="record-btn" id="copyHtmlBtn" style="width:100%; justify-content:center; margin-top:20px; background:transparent; color:var(--gold); border:1px solid var(--gold);">Copier le tableau (HTML)</button>
+  <button class="record-btn" id="emailBtn" style="width:100%; justify-content:center; margin-top:10px;">Envoyer par email</button>
+</div>
+
+</div>
+
+<script>
+(function(){
+  const NOTE_NAMES = ["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
+  const PITCH_CLASS = { C:0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, F:5, 'F#':6, Gb:6, G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11 };
+
+  // ordre des tonalités d'harmonica (G le plus grave -> F# le plus aigu), decalage en demi-tons par rapport a un C
+  const KEY_OFFSETS = { G:-5, Ab:-4, A:-3, Bb:-2, B:-1, C:0, Db:1, D:2, Eb:3, E:4, F:5, 'F#':6 };
+
+  // notes d'un harmonica en C (convention MIDI: C4 = 60)
+  const BLOW_C = ["C4","E4","G4","C5","E5","G5","C6","E6","G6","C7"];
+  const DRAW_C = ["D4","G4","B4","D5","F5","A5","B5","D6","F6","A6"];
+
+  function noteNameToMidi(str){
+    const m = str.match(/^([A-G][#b]?)(-?\d+)$/);
+    const pc = PITCH_CLASS[m[1]];
+    const octave = parseInt(m[2], 10);
+    return 12 * (octave + 1) + pc;
+  }
+  const MIDI_LETTERS = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  function midiToEnglishName(midi){
+    const pc = ((midi % 12) + 12) % 12;
+    const octave = Math.floor(midi / 12) - 1;
+    return MIDI_LETTERS[pc] + octave;
+  }
+
+  const BLOW_C_MIDI = BLOW_C.map(noteNameToMidi);
+  const DRAW_C_MIDI = DRAW_C.map(noteNameToMidi);
+
+  // écarts en demi-tons appliqués à des cases précises, par rapport à l'accordage Richter de base
+  const TUNINGS = {
+    richter:         { adjust: {} },
+    lydian_country:  { adjust: { 'A5': 1 } },
+    paddy_richter:   { adjust: { 'S3': 2 } },
+    minor_harmonic:  { adjust: { 'S2': -1, 'S5': -1, 'S8': -1, 'A6': -1, 'A10': -1 } },
+    minor_natural:   { adjust: { 'S2': -1, 'S5': -1, 'S8': -1, 'A3': -1, 'A7': -1 } },
+  };
+
+  function tuningAdjust(tuningKey, type, hole){
+    const tuning = TUNINGS[tuningKey] || TUNINGS.richter;
+    return tuning.adjust[type + hole] || 0;
+  }
+
+  const noteOut = document.getElementById('noteOut');
+  const centsOut = document.getElementById('centsOut');
+  const freqOut = document.getElementById('freqOut');
+  const statusEl = document.getElementById('status');
+  const toggleBtn = document.getElementById('toggle');
+  const needle = document.getElementById('needle');
+  const refSelect = document.getElementById('refFreq');
+  const keySelect = document.getElementById('harmoKey');
+  const tuningSelect = document.getElementById('harmoTuning');
+  const harmoNameInput = document.getElementById('harmoName');
+
+  function pad2(n){ return String(n).padStart(2, '0'); }
+  (function initHarmoName(){
+    const now = new Date();
+    const day = pad2(now.getDate());
+    const month = pad2(now.getMonth() + 1);
+    const rand = Math.floor(Math.random() * 10000); // 0 à 9999
+    harmoNameInput.value = keySelect.value + rand + '-' + day + '/' + month;
+  })();
+  const ticksGroup = document.getElementById('ticks');
+
+  // dessiner les graduations tous les 10 cents de -50 a +50
+  const cx = 210, cy = 190, r = 170;
+  for(let c=-50; c<=50; c+=10){
+    const angle = (c/50) * 90; // -90..90 deg from vertical
+    const rad = (angle - 90) * Math.PI/180;
+    const isMajor = (c % 50 === 0);
+    const inner = isMajor ? r-16 : r-10;
+    const x1 = cx + r*Math.cos(rad), y1 = cy + r*Math.sin(rad);
+    const x2 = cx + inner*Math.cos(rad), y2 = cy + inner*Math.sin(rad);
+    const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+    line.setAttribute("x1",x1); line.setAttribute("y1",y1);
+    line.setAttribute("x2",x2); line.setAttribute("y2",y2);
+    line.setAttribute("stroke", isMajor ? "#8b8d98" : "#3a3d4a");
+    line.setAttribute("stroke-width", isMajor ? 2 : 1);
+    ticksGroup.appendChild(line);
+  }
+
+  let audioCtx, analyser, source, mediaStream;
+  let rafId = null;
+  let listening = false;
+
+  function freqToNoteAndCents(freq, refA4){
+    const semitonesFromA4 = 12 * Math.log2(freq / refA4);
+    const rounded = Math.round(semitonesFromA4);
+    const cents = Math.round((semitonesFromA4 - rounded) * 100);
+    // MIDI: A4 = 69 -> note index
+    const midi = 69 + rounded;
+    const noteIndex = ((midi % 12) + 12) % 12;
+    const octave = Math.floor(midi / 12) - 1;
+    return { name: NOTE_NAMES[noteIndex] + octave, cents };
+  }
+
+  function midiToFrenchName(midi){
+    const idx = ((midi % 12) + 12) % 12;
+    const octave = Math.floor(midi / 12) - 1;
+    return NOTE_NAMES[idx] + octave;
+  }
+
+  // affichage corrigé quand on connaît déjà la case repérée pour le jeu en cours : si l'écart
+  // brut dépasse 2 tons (400 ¢), on considère qu'il s'agit bien de la note attendue, détectée à
+  // la mauvaise octave, et on ramène l'écart à sa valeur équivalente la plus proche de 0.
+  function computeExpectedDisplay(freq, expectedMidi, refA4){
+    const rawSemitones = 12 * Math.log2(freq / refA4) - (expectedMidi - 69);
+    let cents = Math.round(rawSemitones * 100);
+    if(Math.abs(cents) > 400) cents = octaveReducedCents(cents);
+    return { name: midiToFrenchName(expectedMidi), cents };
+  }
+
+  // Détection de hauteur par l'algorithme YIN (de Cheveigné & Kawahara, 2002) : plus robuste que
+  // la simple autocorrélation face aux erreurs d'octave et de quinte, grâce à une fonction de
+  // différence normalisée plutôt qu'un pic de corrélation brut.
+  function detectPitch(buf, sampleRate){
+    const SIZE = buf.length;
+    let rms = 0;
+    for(let i=0; i<SIZE; i++){ rms += buf[i]*buf[i]; }
+    rms = Math.sqrt(rms/SIZE);
+    if(rms < 0.01) return -1; // signal trop faible / silence
+
+    const maxLag = Math.floor(SIZE/2);
+    const threshold = 0.15;
+
+    // 1) fonction de différence
+    const d = new Float32Array(maxLag);
+    for(let tau=0; tau<maxLag; tau++){
+      let sum = 0;
+      for(let i=0; i<maxLag; i++){
+        const delta = buf[i] - buf[i+tau];
+        sum += delta*delta;
+      }
+      d[tau] = sum;
+    }
+
+    // 2) fonction de différence normalisée par la moyenne cumulée
+    const cmnd = new Float32Array(maxLag);
+    cmnd[0] = 1;
+    let runningSum = 0;
+    for(let tau=1; tau<maxLag; tau++){
+      runningSum += d[tau];
+      cmnd[tau] = runningSum > 0 ? (d[tau]*tau/runningSum) : 1;
+    }
+
+    // 3) seuil absolu : premier passage sous le seuil, puis minimum local suivant
+    let tauEstimate = -1;
+    for(let tau=2; tau<maxLag; tau++){
+      if(cmnd[tau] < threshold){
+        while(tau+1 < maxLag && cmnd[tau+1] < cmnd[tau]) tau++;
+        tauEstimate = tau;
+        break;
+      }
+    }
+    if(tauEstimate === -1){
+      // repli : aucun passage net sous le seuil, on prend le minimum global (moins fiable)
+      let minVal = Infinity, minTau = -1;
+      for(let tau=2; tau<maxLag; tau++){
+        if(cmnd[tau] < minVal){ minVal = cmnd[tau]; minTau = tau; }
+      }
+      if(minTau === -1 || minVal > 0.5) return -1; // pas assez fiable
+      tauEstimate = minTau;
+    }
+
+    // 4) interpolation parabolique pour affiner
+    let betterTau = tauEstimate;
+    if(tauEstimate > 0 && tauEstimate < maxLag-1){
+      const x0 = cmnd[tauEstimate-1], x1 = cmnd[tauEstimate], x2 = cmnd[tauEstimate+1];
+      const a = (x0 + x2 - 2*x1)/2, b = (x2 - x0)/2;
+      if(a) betterTau = tauEstimate - b/(2*a);
+    }
+
+    return sampleRate / betterTau;
+  }
+
+  function updateGauge(cents){
+    const clamped = Math.max(-50, Math.min(50, cents));
+    const angle = (clamped/50) * 90; // -90..90
+    needle.style.transform = `rotate(${angle}deg)`;
+
+    let color = '#ede9df';
+    if(Math.abs(cents) <= 5) color = 'var(--in-tune)';
+    else if(Math.abs(cents) > 25) color = 'var(--flat-sharp)';
+    noteOut.style.color = color;
+  }
+
+  function process(){
+    const buf = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(buf);
+    const freq = detectPitch(buf, audioCtx.sampleRate);
+
+    if(freq !== -1 && freq > 60 && freq < 3200){
+      const refA4 = parseFloat(refSelect.value);
+      const expectedMidi = (sequenceActive && playIdentifiedTarget)
+        ? (playIdentifiedTarget.type === 'A' ? expectedDrawMidi : expectedBlowMidi)[playIdentifiedTarget.hole - 1]
+        : null;
+      const { name, cents } = expectedMidi !== null
+        ? computeExpectedDisplay(freq, expectedMidi, refA4)
+        : freqToNoteAndCents(freq, refA4);
+      noteOut.textContent = name;
+      freqOut.textContent = freq.toFixed(1) + ' Hz';
+      updateGauge(cents);
+      if(cents === 0){
+        centsOut.innerHTML = '<b>0 ¢</b> — juste';
+      } else if(Math.abs(cents) <= 5){
+        const sign = cents > 0 ? '+' : '−';
+        centsOut.innerHTML = '<b>' + sign + Math.abs(cents) + ' ¢</b> — juste';
+      } else {
+        const dir = cents > 0 ? 'Descendre' : 'Monter';
+        centsOut.innerHTML = dir + ' de <b>' + Math.abs(cents) + ' ¢</b>';
+      }
+      if(sequenceActive) recordFrame(name, cents, freq, performance.now());
+    } else {
+      centsOut.textContent = 'en écoute…';
+      freqOut.innerHTML = '&nbsp;';
+      if(sequenceActive) recordFrame(null, null, -1, performance.now());
+    }
+    rafId = requestAnimationFrame(process);
+  }
+
+  async function start(){
+    try{
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: {
+        echoCancellation: false, noiseSuppression: false, autoGainControl: false
+      }});
+    }catch(err){
+      statusEl.textContent = "Accès au micro refusé ou indisponible.";
+      return;
+    }
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    source = audioCtx.createMediaStreamSource(mediaStream);
+    source.connect(analyser);
+
+    listening = true;
+    toggleBtn.textContent = 'Couper le micro';
+    toggleBtn.classList.add('listening');
+    statusEl.textContent = '';
+    process();
+  }
+
+  function stop(){
+    listening = false;
+    if(rafId) cancelAnimationFrame(rafId);
+    if(mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+    if(audioCtx) audioCtx.close();
+    toggleBtn.textContent = 'Activer le micro';
+    toggleBtn.classList.remove('listening');
+    noteOut.textContent = '—';
+    noteOut.style.color = 'var(--text)';
+    centsOut.textContent = 'en attente du signal';
+    freqOut.innerHTML = '&nbsp;';
+    needle.style.transform = 'rotate(0deg)';
+    if(sequenceActive) cancelSequence();
+  }
+
+  toggleBtn.addEventListener('click', () => {
+    if(listening) stop(); else start();
+  });
+
+  // ---- Enregistrement automatique de la séquence ----
+  const recordBtn = document.getElementById('recordBtn');
+  const seqStatus = document.getElementById('seqStatus');
+
+  const REF_A = [0,0,-5,0,-5,0,0,3,0,5];
+  const REF_S = [0,-5,0,0,-5,0,3,-2,3,5];
+
+  const PLAY_GAP_MS = 300;          // silence court = fin d'un jeu de note
+  const EARLY_ID_MIN_SAMPLES = 6;   // nb minimal d'échantillons avant de tenter un repérage précoce
+  const EARLY_ID_MIN_DURATION_MS = 150; // durée minimale de jeu avant de tenter un repérage précoce
+  const SILENCE_TIMEOUT_MS = 3000;  // 3s sans note = pause (pas d'arrêt)
+
+  let sequenceActive = false;
+  let isPaused = false;
+  let eligibleHoles = [];       // toutes les cases concernées (ou une seule si sélection manuelle)
+  let filledHoles = new Set();  // cases déjà capturées dans cette session ("type-hole")
+  let lastValidSampleAt = 0;
+  let expectedBlowMidi = [];
+  let expectedDrawMidi = [];
+  let lastProcessedType = null; // 'A' ou 'S' — type de la dernière case capturée, pour lever les ambiguïtés
+  let pendingDisambiguation = null; // { candidates } en attente d'un clic
+  let ambiguousCellEls = [];
+
+  // ---- état du jeu de note en cours ----
+  let playInProgress = false;
+  let playSamples = [];          // échantillons {freq, name, t} du jeu en cours
+  let playIdentifiedTarget = null; // case repérée pour ce jeu, dès que possible
+  let framedCellEl = null;       // case actuellement encadrée (celle qu'on est en train de jouer)
+
+  const errorList = document.getElementById('errorList');
+
+  function pushError(text){
+    const empty = errorList.querySelector('.error-empty');
+    if(empty) empty.remove();
+    const item = document.createElement('div');
+    item.className = 'error-item';
+    item.textContent = text;
+    errorList.appendChild(item);
+  }
+
+  function resetErrors(){
+    errorList.innerHTML = '<div class="error-empty">Aucune erreur pour l\'instant.</div>';
+  }
+
+  function formatCents(n){
+    return n > 0 ? ('+' + n) : String(n);
+  }
+
+  function allHoles(){
+    const order = [];
+    for(let h=1; h<=10; h++) order.push({ type:'A', hole:h });
+    for(let h=1; h<=10; h++) order.push({ type:'S', hole:h });
+    return order;
+  }
+
+  function targetLabel(target){
+    return (target.type === 'A' ? 'Aspiré' : 'Soufflé') + ' n°' + target.hole;
+  }
+
+  function highlightAmbiguousCells(candidates){
+    clearAmbiguousHighlight();
+    ambiguousCellEls = candidates
+      .map(c => document.getElementById('empty-' + c.type + '-' + c.hole))
+      .filter(Boolean);
+    ambiguousCellEls.forEach(el => el.classList.add('target-cell'));
+  }
+
+  function clearAmbiguousHighlight(){
+    ambiguousCellEls.forEach(el => el.classList.remove('target-cell'));
+    ambiguousCellEls = [];
+  }
+
+  function frameCell(target){
+    if(framedCellEl) framedCellEl.classList.remove('spotted-cell');
+    const cell = document.getElementById('empty-' + target.type + '-' + target.hole);
+    cell.classList.add('spotted-cell');
+    framedCellEl = cell;
+  }
+
+  function unframeCurrentCell(){
+    if(framedCellEl){ framedCellEl.classList.remove('spotted-cell'); framedCellEl = null; }
+  }
+
+  // trouve, parmi les cases concernées, celle dont la note attendue est la plus proche de la
+  // fréquence jouée. NB : distance ABSOLUE en priorité (pas réduite à l'octave) — plusieurs cases
+  // partagent la même note à des octaves différentes, il faut donc distinguer entre elles.
+  // Repli : si un décalage d'octave (±1 ou ±2) donne un candidat NETTEMENT meilleur que la
+  // correspondance directe, on considère que la détection de hauteur s'est trompée d'octave
+  // (ex. F4 détecté au lieu de F5) et on privilégie ce candidat corrigé.
+  function identifyHoleForRecording(freq){
+    const refA4 = parseFloat(refSelect.value);
+    const midi = 69 + 12 * Math.log2(freq / refA4);
+
+    function computeCandidates(m){
+      return eligibleHoles.map(t => ({
+        type: t.type,
+        hole: t.hole,
+        dist: Math.abs(m - (t.type === 'A' ? expectedDrawMidi : expectedBlowMidi)[t.hole - 1])
+      }));
+    }
+
+    const direct = computeCandidates(midi);
+    direct.sort((a,b) => a.dist - b.dist);
+
+    let shiftedAll = [];
+    [12, -12, 24, -24].forEach(shift => { shiftedAll = shiftedAll.concat(computeCandidates(midi + shift)); });
+    shiftedAll.sort((a,b) => a.dist - b.dist);
+
+    const bestDirect = direct[0];
+    const bestShifted = shiftedAll[0];
+
+    let candidates;
+    if(bestShifted && bestShifted.dist < 0.5 && bestShifted.dist < bestDirect.dist - 0.5){
+      candidates = shiftedAll; // correction d'octave nettement meilleure : on lui fait confiance
+    } else if(bestDirect.dist <= 3){
+      candidates = direct;
+    } else if(bestShifted && bestShifted.dist <= 3){
+      candidates = shiftedAll;
+    } else {
+      return null;
+    }
+
+    let pool = candidates.filter(c => c.dist <= candidates[0].dist + 0.05); // ~5 cents de marge = ex-aequo
+    if(pool.length === 1) return { resolved: pool[0] };
+
+    if(lastProcessedType){
+      const byHistory = pool.filter(c => c.type === lastProcessedType);
+      if(byHistory.length === 1) return { resolved: byHistory[0] };
+      if(byHistory.length > 0) pool = byHistory;
+    }
+    if(pool.length === 1) return { resolved: pool[0] };
+
+    return { ambiguous: true, candidates: pool };
+  }
+
+  // ---- Sélection d'une case pour forcer la prochaine note ----
+  let selectedTarget = null;
+
+  function updateSelectionStatus(){
+    if(sequenceActive) return; // ne pas écraser le statut d'un enregistrement en cours
+    if(selectedTarget){
+      seqStatus.classList.remove('error');
+      seqStatus.innerHTML = 'Case sélectionnée : <b>' + targetLabel(selectedTarget) + '</b> — la prochaine note jouée y sera inscrite';
+    } else {
+      seqStatus.innerHTML = '&nbsp;';
+    }
+  }
+
+  function toggleCellSelection(type, hole){
+    const cell = document.getElementById('empty-' + type + '-' + hole);
+    if(selectedTarget && selectedTarget.type === type && selectedTarget.hole === hole){
+      cell.classList.remove('cell-selected');
+      selectedTarget = null;
+    } else {
+      if(selectedTarget){
+        const prev = document.getElementById('empty-' + selectedTarget.type + '-' + selectedTarget.hole);
+        if(prev) prev.classList.remove('cell-selected');
+      }
+      selectedTarget = { type, hole };
+      cell.classList.add('cell-selected');
+    }
+    updateSelectionStatus();
+  }
+
+  ['A','S'].forEach(type => {
+    for(let hole=1; hole<=10; hole++){
+      const cell = document.getElementById('empty-' + type + '-' + hole);
+      cell.addEventListener('click', () => {
+        if(pendingDisambiguation){ resolveDisambiguation(type, hole); return; }
+        toggleCellSelection(type, hole);
+      });
+    }
+  });
+
+  function updateOperationCell(type, hole){
+    const recordedCell = document.getElementById('empty-' + type + '-' + hole);
+    const opCell = document.getElementById('op-' + type + '-' + hole);
+    const text = recordedCell.textContent.trim();
+    if(text === ''){
+      opCell.textContent = '';
+      opCell.className = 'val-empty';
+      return;
+    }
+    const recorded = parseInt(text, 10);
+    const ref = (type === 'A' ? REF_A : REF_S)[hole - 1];
+    const op = ref - recorded;
+    opCell.textContent = formatCents(op);
+    opCell.className = op === 0 ? 'val-0' : (op > 0 ? 'val-pos' : 'val-neg');
+  }
+
+  // ramène un écart en cents à sa valeur équivalente la plus proche de 0,
+  // en ignorant les décalages d'octave (1200¢), double octave (2400¢), triple octave (3600¢)...
+  function octaveReducedCents(v){
+    let r = v % 1200;
+    if(r > 600) r -= 1200;
+    if(r < -600) r += 1200;
+    return r;
+  }
+
+  // tente un repérage précoce de la case, dès qu'on a assez d'échantillons — pendant que la
+  // note est encore en train de sonner — pour encadrer immédiatement la case correspondante.
+  function tryEarlyIdentify(){
+    if(playIdentifiedTarget || pendingDisambiguation) return;
+    if(playSamples.length < EARLY_ID_MIN_SAMPLES) return;
+    const duration = playSamples[playSamples.length-1].t - playSamples[0].t;
+    if(duration < EARLY_ID_MIN_DURATION_MS) return;
+
+    const avgFreq = playSamples.reduce((a,s) => a + s.freq, 0) / playSamples.length;
+    const result = identifyHoleForRecording(avgFreq);
+    if(!result) return; // pas encore assez fiable, on retentera au prochain échantillon
+
+    if(result.ambiguous){
+      pendingDisambiguation = { candidates: result.candidates };
+      highlightAmbiguousCells(result.candidates);
+      seqStatus.innerHTML = 'Impossible de trancher automatiquement — clique sur la bonne case parmi : '
+        + result.candidates.map(targetLabel).join(' / ');
+      return;
+    }
+
+    playIdentifiedTarget = result.resolved;
+    frameCell(playIdentifiedTarget);
+    seqStatus.classList.remove('error');
+    seqStatus.innerHTML = 'Case repérée : <b>' + targetLabel(playIdentifiedTarget) + '</b> — maintiens la note, l\'écart sera inscrit à la fin';
+  }
+
+  function resolveDisambiguation(type, hole){
+    if(!pendingDisambiguation) return;
+    const match = pendingDisambiguation.candidates.find(c => c.type === type && c.hole === hole);
+    if(!match) return; // clic hors des cases proposées : on ignore
+
+    clearAmbiguousHighlight();
+    pendingDisambiguation = null;
+
+    playIdentifiedTarget = { type, hole };
+    frameCell(playIdentifiedTarget);
+
+    if(!playInProgress){
+      // la note s'est arrêtée pendant qu'on attendait le clic : on finalise tout de suite
+      finalizeCurrentPlay();
+    } else {
+      seqStatus.innerHTML = 'Case repérée : <b>' + targetLabel(playIdentifiedTarget) + '</b> — maintiens la note, l\'écart sera inscrit à la fin';
+    }
+  }
+
+  const OUT_OF_TUNE_THRESHOLD = 40;
+
+  // écrit l'écart dans la case déjà repérée pour ce jeu, à partir du milieu (25%-75%) de sa durée
+  function finalizeCurrentPlay(){
+    const target = playIdentifiedTarget;
+    const samples = playSamples;
+    playSamples = [];
+    playIdentifiedTarget = null;
+    unframeCurrentCell();
+
+    if(!target || samples.length === 0) return;
+
+    const t0 = samples[0].t, t1 = samples[samples.length-1].t;
+    const duration = t1 - t0;
+    let mid = samples.filter(s => s.t >= t0 + duration*0.25 && s.t <= t0 + duration*0.75);
+    if(mid.length === 0) mid = samples;
+    const avgFreq = mid.reduce((a,s) => a + s.freq, 0) / mid.length;
+
+    const expectedMidi = (target.type === 'A' ? expectedDrawMidi : expectedBlowMidi)[target.hole - 1];
+    const refA4 = parseFloat(refSelect.value);
+    const rawValue = Math.round((12 * Math.log2(avgFreq / refA4) - (expectedMidi - 69)) * 100);
+    const value = octaveReducedCents(rawValue);
+
+    captureStep(target, value, expectedMidi);
+  }
+
+  function captureStep(target, value, expectedMidi){
+    const cell = document.getElementById('empty-' + target.type + '-' + target.hole);
+    cell.textContent = formatCents(value);
+    cell.classList.remove('val-empty');
+    cell.classList.add(value === 0 ? 'val-0' : (value > 0 ? 'val-pos' : 'val-neg'));
+    cell.classList.remove('target-cell', 'spotted-cell');
+    cell.classList.add('flash');
+    setTimeout(() => cell.classList.remove('flash'), 600);
+
+    updateOperationCell(target.type, target.hole);
+
+    const opCell = document.getElementById('op-' + target.type + '-' + target.hole);
+    if(Math.abs(value) > OUT_OF_TUNE_THRESHOLD){
+      cell.classList.add('ref-error');
+      opCell.classList.add('ref-error');
+      pushError(targetLabel(target) + ' : ' + formatCents(value) + ' ¢ par rapport à la note attendue (' + midiToEnglishName(expectedMidi) + ')');
+    } else {
+      cell.classList.remove('ref-error');
+      opCell.classList.remove('ref-error');
+    }
+
+    lastProcessedType = target.type;
+    filledHoles.add(target.type + '-' + target.hole);
+
+    if(filledHoles.size >= eligibleHoles.length){
+      finishSequence();
+    } else {
+      seqStatus.classList.remove('error');
+      seqStatus.innerHTML = filledHoles.size + '/' + eligibleHoles.length + ' case(s) enregistrée(s) — joue n\'importe quelle autre case';
+    }
+  }
+
+  // appelé à chaque frame audio pendant l'enregistrement : freq vaut -1 en l'absence de note
+  function recordFrame(name, cents, freq, now){
+    if(freq !== -1){
+      lastValidSampleAt = now;
+      if(isPaused){
+        isPaused = false;
+        seqStatus.classList.remove('error');
+        seqStatus.innerHTML = 'Reprise — ' + filledHoles.size + '/' + eligibleHoles.length + ' case(s) enregistrée(s)';
+      }
+      if(!playInProgress){
+        playInProgress = true;
+        playSamples = [];
+        playIdentifiedTarget = null;
+        if(selectedTarget){
+          playIdentifiedTarget = { type: selectedTarget.type, hole: selectedTarget.hole };
+          const selCell = document.getElementById('empty-' + selectedTarget.type + '-' + selectedTarget.hole);
+          if(selCell) selCell.classList.remove('cell-selected');
+          selectedTarget = null;
+          frameCell(playIdentifiedTarget);
+          seqStatus.classList.remove('error');
+          seqStatus.innerHTML = 'Case forcée : <b>' + targetLabel(playIdentifiedTarget) + '</b> — maintiens la note, l\'écart sera inscrit à la fin';
+        }
+      }
+      playSamples.push({ freq, name, t: now });
+      if(!playIdentifiedTarget) tryEarlyIdentify();
+    } else {
+      if(playInProgress && (now - lastValidSampleAt) > PLAY_GAP_MS){
+        playInProgress = false;
+        if(playIdentifiedTarget){
+          finalizeCurrentPlay();
+        } else if(!pendingDisambiguation){
+          playSamples = []; // note jamais identifiée (pas assez fiable) : on l'oublie
+        }
+        // si une désambiguïsation est en attente, on garde playSamples pour finaliser au clic
+      }
+      if(sequenceActive && !isPaused && !pendingDisambiguation){
+        if((now - lastValidSampleAt) > SILENCE_TIMEOUT_MS){
+          isPaused = true;
+          seqStatus.classList.remove('error');
+          seqStatus.innerHTML = 'Aucune note depuis 3 s — en pause. Rejoue une note pour reprendre.';
+        }
+      }
+    }
+  }
+
+  async function startSequence(){
+    if(!listening){
+      await start();
+      if(!listening) return; // permission refusée
+    }
+
+    const offset = KEY_OFFSETS[keySelect.value];
+    expectedBlowMidi = BLOW_C_MIDI.map((m,i) => m + offset + tuningAdjust(tuningSelect.value, 'S', i+1));
+    expectedDrawMidi = DRAW_C_MIDI.map((m,i) => m + offset + tuningAdjust(tuningSelect.value, 'A', i+1));
+
+    eligibleHoles = allHoles();
+    resetErrors();
+
+    sequenceActive = true;
+    isPaused = false;
+    // les cases déjà remplies ne sont pas effacées : on repart de l'état actuel
+    filledHoles = new Set(
+      eligibleHoles
+        .filter(t => document.getElementById('empty-' + t.type + '-' + t.hole).textContent.trim() !== '')
+        .map(t => t.type + '-' + t.hole)
+    );
+    lastProcessedType = null;
+    pendingDisambiguation = null;
+    clearAmbiguousHighlight();
+    playInProgress = false;
+    playSamples = [];
+    playIdentifiedTarget = null;
+    unframeCurrentCell();
+    lastValidSampleAt = performance.now();
+    recordBtn.classList.add('recording');
+    recordBtn.querySelector('.record-btn-text').textContent = 'Arrêter';
+    seqStatus.classList.remove('error');
+    seqStatus.innerHTML = selectedTarget
+      ? 'Case sélectionnée : <b>' + targetLabel(selectedTarget) + '</b> — la prochaine note jouée y sera inscrite'
+      : 'Joue n\'importe quelle case — la case jouée est identifiée automatiquement';
+  }
+
+  function cancelSequence(){
+    sequenceActive = false;
+    isPaused = false;
+    playInProgress = false;
+    playSamples = [];
+    playIdentifiedTarget = null;
+    unframeCurrentCell();
+    pendingDisambiguation = null;
+    clearAmbiguousHighlight();
+    recordBtn.classList.remove('recording');
+    recordBtn.querySelector('.record-btn-text').textContent = 'Enregistrer';
+    seqStatus.classList.remove('error');
+    seqStatus.innerHTML = '&nbsp;';
+  }
+
+  function finishSequence(){
+    sequenceActive = false;
+    isPaused = false;
+    pendingDisambiguation = null;
+    clearAmbiguousHighlight();
+    recordBtn.classList.remove('recording');
+    recordBtn.querySelector('.record-btn-text').textContent = 'Enregistrer';
+    seqStatus.classList.remove('error');
+    seqStatus.innerHTML = '<b>Séquence enregistrée ✓</b>';
+    setTimeout(() => { if(!sequenceActive) seqStatus.innerHTML = '&nbsp;'; }, 3000);
+  }
+
+  recordBtn.addEventListener('click', () => {
+    if(sequenceActive) cancelSequence(); else startSequence();
+  });
+
+  // ---- Envoi par email ----
+  const emailBtn = document.getElementById('emailBtn');
+
+  function cellText(id){
+    const el = document.getElementById(id);
+    const t = el.textContent.trim();
+    return t === '' ? '–' : t;
+  }
+
+  function buildOperationsTable(){
+    const holes = [1,2,3,4,5,6,7,8,9,10];
+    const header = 'Case      ' + holes.map(h => String(h).padStart(4)).join('');
+    const rowA = 'Aspiré   ' + holes.map(h => cellText('op-A-' + h).padStart(4)).join('');
+    const rowS = 'Soufflé  ' + holes.map(h => cellText('op-S-' + h).padStart(4)).join('');
+    return header + '\n' + rowA + '\n' + rowS;
+  }
+
+  emailBtn.addEventListener('click', () => {
+    const body =
+      'Harmonica : ' + harmoNameInput.value + '\n' +
+      'Tonalité : ' + keySelect.value + '\n' +
+      'Opérations à réaliser :\n' +
+      buildOperationsTable();
+
+    const mailto = 'mailto:?subject=' + encodeURIComponent('Opérations harmonica ' + harmoNameInput.value)
+      + '&body=' + encodeURIComponent(body);
+    window.location.href = mailto;
+  });
+
+  // ---- Copie du tableau au format HTML (pour collage riche dans un email) ----
+  function buildOperationsHtmlTable(){
+    const holes = [1,2,3,4,5,6,7,8,9,10];
+    const cellStyle = 'border:1px solid #999999; padding:6px 10px; text-align:center; font-family:Arial,sans-serif; font-size:13px;';
+    const headStyle = cellStyle + ' background:#f0f0f0; font-weight:bold;';
+    const labelStyle = cellStyle + ' font-weight:bold; background:#f7f7f7;';
+
+    function valueCell(text){
+      let color = '#000000';
+      if(text.startsWith('+')) color = '#1a7a3c'; // vert foncé
+      else if(text.startsWith('-')) color = '#c0262d'; // rouge
+      return '<td style="' + cellStyle + ' color:' + color + ';">' + text + '</td>';
+    }
+
+    let html = '<p style="font-family:Arial,sans-serif; font-size:13px;">';
+    html += 'Harmonica : ' + harmoNameInput.value + '<br>';
+    html += 'Tonalité : ' + keySelect.value + '<br>';
+    html += 'Opérations à réaliser :</p>';
+
+    html += '<table style="border-collapse:collapse;">';
+    html += '<tr><td style="' + headStyle + '"></td>' + holes.map(h => '<td style="' + headStyle + '">' + h + '</td>').join('') + '</tr>';
+    html += '<tr><td style="' + labelStyle + '">Aspiré</td>' + holes.map(h => valueCell(cellText('op-A-' + h))).join('') + '</tr>';
+    html += '<tr><td style="' + labelStyle + '">Soufflé</td>' + holes.map(h => valueCell(cellText('op-S-' + h))).join('') + '</tr>';
+    html += '</table>';
+    return html;
+  }
+
+  const copyHtmlBtn = document.getElementById('copyHtmlBtn');
+  copyHtmlBtn.addEventListener('click', async () => {
+    const html = buildOperationsHtmlTable();
+    const plain = 'Harmonica : ' + harmoNameInput.value + '\nTonalité : ' + keySelect.value
+      + '\nOpérations à réaliser :\n' + buildOperationsTable();
+
+    const originalText = copyHtmlBtn.textContent;
+    try{
+      const item = new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([plain], { type: 'text/plain' })
+      });
+      await navigator.clipboard.write([item]);
+      copyHtmlBtn.textContent = 'Copié ✓ — colle-le dans ton email';
+    }catch(err){
+      copyHtmlBtn.textContent = 'Copie impossible sur ce navigateur';
+    }
+    setTimeout(() => { copyHtmlBtn.textContent = originalText; }, 2500);
+  });
+
+  // ---- Export des données vers un fichier ----
+  const exportBtn = document.getElementById('exportBtn');
+
+  function collectRow(prefix, type){
+    const holes = [1,2,3,4,5,6,7,8,9,10];
+    return holes.map(h => cellText(prefix + '-' + type + '-' + h));
+  }
+
+  exportBtn.addEventListener('click', () => {
+    const data = {
+      version: 1,
+      harmonica: harmoNameInput.value,
+      tonalite: keySelect.value,
+      accordage: tuningSelect.value,
+      referenceA4: parseFloat(refSelect.value),
+      reference: { A: collectRow('ref', 'A'), S: collectRow('ref', 'S') },
+      enregistree: { A: collectRow('empty', 'A'), S: collectRow('empty', 'S') },
+      operations: { A: collectRow('op', 'A'), S: collectRow('op', 'S') }
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = harmoNameInput.value.replace(/[\/\\]/g, '-') + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+})();
+</script>
+
+</body>
+</html>
