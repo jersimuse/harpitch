@@ -657,6 +657,7 @@
         </div>
         <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
           <button class="finish-btn" id="finishBtn">Accordage terminé</button>
+          <button class="ghost-btn" id="emailBtn" style="margin-top:0; color:var(--text); border-color:var(--text);">Envoyer eMail</button>
           <button class="ghost-btn" id="saveBtn" style="margin-top:0;">Sauvegarder</button>
         </div>
       </div>
@@ -1140,7 +1141,9 @@
 
   function pad2(n){ return String(n).padStart(2, '0'); }
 
-  saveBtn.addEventListener('click', async () => {
+  // construit le contenu JSON à jour et le nom de fichier correspondant — réutilisé par
+  // "Sauvegarder" et "Envoyer eMail"
+  function buildSaveData(){
     if(!currentData && !harmoNameInput.value.trim()){
       const now = new Date();
       const day = pad2(now.getDate());
@@ -1165,6 +1168,58 @@
     // à côté de l'original une fois trié par nom, plus facile à repérer que loin dans la liste
     const baseName = (harmoNameInput.value || 'harmonica').replace(/[\/\\]/g, '-');
     const finalName = baseName + (tuningFinished ? '_FAIT' : '') + '.json';
+    return { jsonText, finalName };
+  }
+
+  const emailBtn = document.getElementById('emailBtn');
+  const EMAIL_RECIPIENT = 'arkia@alienbeatsrecords.com';
+
+  emailBtn.addEventListener('click', async () => {
+    const { jsonText, finalName } = buildSaveData();
+
+    // meilleure option (fonctionne bien sur iPad) : partage natif avec le fichier déjà joint,
+    // l'utilisateur choisit "Mail" dans la fenêtre de partage du système
+    if(typeof navigator.share === 'function'){
+      try{
+        const file = new File([jsonText], finalName, { type: 'application/json' });
+        if(navigator.canShare && navigator.canShare({ files: [file] })){
+          await navigator.share({
+            files: [file],
+            title: 'Harmonica ' + (harmoNameInput.value || ''),
+            text: 'Fichier harmonica pour ' + EMAIL_RECIPIENT + ' — choisis "Mail" pour l\u2019envoyer.'
+          });
+          loadStatus.textContent = 'Fenêtre de partage ouverte — choisis Mail pour envoyer à ' + EMAIL_RECIPIENT + '.';
+          return;
+        }
+      }catch(err){
+        if(err && err.name === 'AbortError') return; // annulé par l'utilisateur
+        // sinon, on continue vers le repli ci-dessous
+      }
+    }
+
+    // repli (PC / navigateurs sans partage de fichiers) : on télécharge le fichier et on ouvre
+    // un brouillon d'email pré-rempli — il faudra joindre le fichier manuellement
+    const blob = new Blob([jsonText], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = finalName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    const subject = encodeURIComponent('Harmonica ' + (harmoNameInput.value || ''));
+    const body = encodeURIComponent(
+      'Bonjour,\n\nVeuillez trouver ci-joint le fichier ' + finalName + ' (à joindre manuellement, ' +
+      'il vient d\u2019être téléchargé).\n\nMerci.'
+    );
+    window.location.href = 'mailto:' + EMAIL_RECIPIENT + '?subject=' + subject + '&body=' + body;
+    loadStatus.textContent = 'Fichier téléchargé (' + finalName + ') — pense à le joindre dans l\u2019email ouvert.';
+  });
+
+  saveBtn.addEventListener('click', async () => {
+    const { jsonText, finalName } = buildSaveData();
 
     // vérifie (et demande si besoin) la permission d'écriture sur un handle — sans elle,
     // createWritable() échoue silencieusement sur certains navigateurs (observé sur iPad)
