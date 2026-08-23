@@ -593,6 +593,7 @@
   }
   /* case-jumelle de "Reste à faire" : mêmes propriétés graphiques et comportement que le tableau */
   .reed-remaining{
+    position: relative;
     margin-top: 8px;
     width: 38px;
     height: 32px;
@@ -606,6 +607,22 @@
     cursor: pointer;
   }
   .reed-remaining:hover{ background: rgba(255,255,255,0.06); }
+  /* écart de plus de 20 cents : triangle d'alerte derrière la valeur, contour rouge, clignotant */
+  .reed-remaining.alert-cell::before{
+    content: '';
+    position: absolute;
+    inset: 1px;
+    z-index: -1;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 3 L21.5 19.5 L2.5 19.5 Z' fill='rgba(214,69,80,0.16)' stroke='%23d64550' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    animation: alert-blink 1s ease-in-out infinite;
+  }
+  @keyframes alert-blink{
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
 </style>
 </head>
 <body>
@@ -835,7 +852,7 @@
   const CORRESPONDANCES_BOX = {
     G: { A: Array(10).fill(-17), S: Array(10).fill(-17) },
     C: { A: Array(10).fill(-17), S: Array(10).fill(-17) },
-    E: { A: Array(10).fill(-17), S: Array(10).fill(-17) },
+    E: { A: Array(10).fill('?'), S: Array(10).fill('?') },
   };
 
   // détermine quel tableau ("CorrespondancesBox") s'applique selon la tonalité de l'harmonica
@@ -891,8 +908,12 @@
         const num = parseCellNumber(cell.textContent);
         cell.classList.toggle('win-cell', num !== null && Math.abs(num) <= 1);
       }
-      if(prefix === 'cur') mirrorReedRemaining(type, h);
+      if(prefix === 'cur'){
+        updateAlertState(cell);
+        mirrorReedRemaining(type, h);
+      }
     });
+    if(computeWin && typeof checkAllGreenAndUpdateFinishStatus === 'function') checkAllGreenAndUpdateFinishStatus();
   }
 
   // applique une rangée de valeurs chargées sur la base des anches : texte seul, jamais de couleur
@@ -919,6 +940,14 @@
 
   // reflète le contenu (texte + couleur) d'une case "Reste à faire" dans sa représentation en
   // anche correspondante, si elle existe (pour l'instant, seule la ligne des aspirés est dessinée)
+  // active/désactive le triangle d'alerte selon la valeur de la case "Reste à faire" :
+  // au-delà de ±20 cents, on l'affiche ; en dessous, on le retire.
+  function updateAlertState(cell){
+    if(!cell) return;
+    const num = parseCellNumber(cell.textContent);
+    cell.classList.toggle('alert-cell', num !== null && Math.abs(num) > 20);
+  }
+
   // copie exacte (texte + classes, donc couleur/vert/sélection) de la case "Reste à faire"
   // vers sa case-jumelle sous l'anche — même donnée, mêmes propriétés graphiques, même sélection.
   function mirrorReedRemaining(type, hole){
@@ -964,6 +993,7 @@
         mirrorReedRemaining(type, hole);
       }
     });
+    if(typeof checkAllGreenAndUpdateFinishStatus === 'function') checkAllGreenAndUpdateFinishStatus();
   }
 
   let currentData = null;
@@ -1015,6 +1045,9 @@
       tuningFinished = !!data.accordageTermine;
       finishBtn.classList.toggle('active', tuningFinished);
     }
+    // la vérification automatique a le dernier mot : elle corrige le statut restauré du fichier
+    // si l'état réel des 20 cases (couleur verte ou non) ne correspond plus
+    if(typeof checkAllGreenAndUpdateFinishStatus === 'function') checkAllGreenAndUpdateFinishStatus();
 
     loadStatus.textContent = 'Harmonica chargé : ' + (data.harmonica || '—');
     if(typeof deleteBtn !== 'undefined') deleteBtn.disabled = true;
@@ -1138,6 +1171,26 @@
     tuningFinished = !tuningFinished;
     finishBtn.classList.toggle('active', tuningFinished);
   });
+
+  // bascule automatique du statut "Accordage terminé" selon la couleur des 20 cases : passe à
+  // vrai dès que toutes sont vertes, repasse à faux dès qu'une seule ne l'est plus (n'écrase pas
+  // un choix manuel de l'utilisateur en dehors de ces deux cas précis)
+  function checkAllGreenAndUpdateFinishStatus(){
+    let allGreen = true;
+    ['A','S'].forEach(type => {
+      for(let h=1; h<=10; h++){
+        const cell = document.getElementById('cur-' + type + '-' + h);
+        if(!cell || !cell.classList.contains('win-cell')) allGreen = false;
+      }
+    });
+    if(allGreen && !tuningFinished){
+      tuningFinished = true;
+      finishBtn.classList.add('active');
+    } else if(!allGreen && tuningFinished){
+      tuningFinished = false;
+      finishBtn.classList.remove('active');
+    }
+  }
 
   function pad2(n){ return String(n).padStart(2, '0'); }
 
@@ -1578,14 +1631,18 @@
       cell.textContent = '';
       setValueClass(cell, 'val-empty');
       cell.classList.remove('win-cell');
+      updateAlertState(cell);
       mirrorReedRemaining(target.type, target.hole);
+      checkAllGreenAndUpdateFinishStatus();
       return;
     }
     const remaining = opVal + ctrlVal - avgRaw;
     cell.textContent = formatCents(remaining);
     setValueClass(cell, remaining === 0 ? 'val-0' : (remaining > 0 ? 'val-pos' : 'val-neg'));
     cell.classList.toggle('win-cell', Math.abs(remaining) <= 1);
+    updateAlertState(cell);
     mirrorReedRemaining(target.type, target.hole);
+    checkAllGreenAndUpdateFinishStatus();
   }
 
   // ramène un écart en cents à sa valeur équivalente la plus proche de 0, en ignorant les
@@ -1708,10 +1765,12 @@
     const curCell = document.getElementById('cur-' + type + '-' + hole);
     const ctrlCell = document.getElementById('ctrl-' + type + '-' + hole);
     curCell.textContent = ''; setValueClass(curCell, 'val-empty'); curCell.classList.remove('win-cell');
+    updateAlertState(curCell);
     ctrlCell.textContent = ''; ctrlCell.className = 'val-empty';
     const reedBase = document.getElementById('reed-base-' + type + '-' + hole);
     if(reedBase) reedBase.textContent = '';
     mirrorReedRemaining(type, hole);
+    checkAllGreenAndUpdateFinishStatus();
     // la case reste sélectionnée (encadrée) après suppression — seul un clic sur une autre case change ça
   });
 
