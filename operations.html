@@ -486,7 +486,7 @@
     color: var(--in-tune) !important;
   }
   table.harmo tbody td.win-cell.cell-selected{
-    box-shadow: inset 0 0 0 2px var(--gold) !important;
+    box-shadow: inset 0 0 0 2px var(--gold), inset 0 0 0 4px var(--in-tune) !important;
     background: rgba(201,162,39,0.14) !important;
   }
   table.harmo tbody td.ambiguous-cell{
@@ -514,7 +514,7 @@
     color: var(--in-tune) !important;
   }
   .win-cell.cell-selected{
-    box-shadow: inset 0 0 0 2px var(--gold) !important;
+    box-shadow: inset 0 0 0 2px var(--gold), inset 0 0 0 4px var(--in-tune) !important;
     background: rgba(201,162,39,0.14) !important;
   }
 
@@ -657,6 +657,20 @@
   @keyframes alert-blink{
     0%, 100% { opacity: 1; }
     50% { opacity: 0.2; }
+  }
+  .firework-particle{
+    position: fixed;
+    top: 0; left: 0;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    animation: firework-fly var(--dur) cubic-bezier(0.15, 0.7, 0.3, 1) forwards;
+  }
+  @keyframes firework-fly{
+    0%{ transform: translate(var(--sx), var(--sy)) scale(1); opacity: 1; }
+    70%{ opacity: 1; }
+    100%{ transform: translate(calc(var(--sx) + var(--dx)), calc(var(--sy) + var(--dy) + 40px)) scale(0.4); opacity: 0; }
   }
 </style>
 </head>
@@ -884,6 +898,16 @@
 
   const harmoNameInput = document.getElementById('harmoName');
   const keySelect = document.getElementById('harmoKey');
+
+  // suit si l'utilisateur a explicitement choisi une tonalité (ne se contente pas du C par défaut) —
+  // charger un fichier qui précise déjà une tonalité compte aussi comme "connue"
+  let keyManuallyChosen = false;
+  keySelect.addEventListener('change', () => { keyManuallyChosen = true; });
+
+  // lettre utilisée dans le nom généré : F# devient Fd (caractère plus sûr dans un nom de fichier)
+  function keyLetterForName(k){
+    return k === 'F#' ? 'Fd' : k;
+  }
   const tuningSelect = document.getElementById('harmoTuning');
 
   // six tableaux de correspondances : un par modèle d'harmonica (Signature / Origin) croisé avec
@@ -1078,7 +1102,7 @@
 
     currentData = data;
     harmoNameInput.value = data.harmonica || '';
-    if(data.tonalite) keySelect.value = data.tonalite;
+    if(data.tonalite){ keySelect.value = data.tonalite; keyManuallyChosen = true; }
     tuningSelect.value = data.accordage && TUNINGS[data.accordage] ? data.accordage : 'richter';
     setHarmoModel(data.modele === 'origin' ? 'origin' : 'signature');
     referenceSequence = data.reference && data.reference.A && data.reference.S ? data.reference : { A: [], S: [] };
@@ -1247,6 +1271,72 @@
   // bascule automatique du statut "Accordage terminé" selon la couleur des 20 cases : passe à
   // vrai dès que toutes sont vertes, repasse à faux dès qu'une seule ne l'est plus (n'écrase pas
   // un choix manuel de l'utilisateur en dehors de ces deux cas précis)
+  // ==== Petites célébrations visuelles (feux d'artifice) ====
+  const FIREWORK_COLORS_SMALL = ['#6fcf97', '#c9a227', '#ede9df'];
+  const FIREWORK_COLORS_BIG = ['#6fcf97', '#c9a227', '#ede9df', '#d64550', '#8ecae6', '#ffb703'];
+
+  function launchFirework(x, y, { count, spread, minDur, maxDur, colors }){
+    for(let i = 0; i < count; i++){
+      const el = document.createElement('div');
+      el.className = 'firework-particle';
+      const angle = Math.random() * Math.PI * 2;
+      const distance = spread * (0.5 + Math.random() * 0.5);
+      const dx = Math.cos(angle) * distance;
+      const dy = Math.sin(angle) * distance;
+      const dur = (minDur + Math.random() * (maxDur - minDur)) / 1000;
+      el.style.setProperty('--sx', x + 'px');
+      el.style.setProperty('--sy', y + 'px');
+      el.style.setProperty('--dx', dx + 'px');
+      el.style.setProperty('--dy', dy + 'px');
+      el.style.setProperty('--dur', dur + 's');
+      el.style.background = colors[Math.floor(Math.random() * colors.length)];
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), dur * 1000 + 100);
+    }
+  }
+
+  // petit feu d'artifice : une case individuelle vient de passer au vert — 3 envois depuis
+  // 3 points différents autour de la case (gauche, droite, haut-centre)
+  function triggerCellFirework(cellEl){
+    const rect = cellEl.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const offsets = [
+      { x: -18, y: 0 },
+      { x: 18, y: -6 },
+      { x: 0, y: -18 },
+    ];
+    offsets.forEach((off, i) => {
+      setTimeout(() => {
+        launchFirework(cx + off.x, cy + off.y, {
+          count: 14, spread: 60, minDur: 500, maxDur: 800, colors: FIREWORK_COLORS_SMALL
+        });
+      }, i * 220);
+    });
+  }
+
+  // grand feu d'artifice : toutes les cases sont vertes (accordage terminé) — 7 salves
+  // réparties sur l'écran
+  function triggerBigFirework(){
+    const w = window.innerWidth, h = window.innerHeight;
+    const bursts = [
+      { x: w * 0.15, y: h * 0.30 },
+      { x: w * 0.30, y: h * 0.45 },
+      { x: w * 0.45, y: h * 0.25 },
+      { x: w * 0.60, y: h * 0.40 },
+      { x: w * 0.75, y: h * 0.28 },
+      { x: w * 0.85, y: h * 0.48 },
+      { x: w * 0.50, y: h * 0.55 },
+    ];
+    bursts.forEach((pos, i) => {
+      setTimeout(() => {
+        launchFirework(pos.x, pos.y, {
+          count: 34, spread: 160, minDur: 800, maxDur: 1300, colors: FIREWORK_COLORS_BIG
+        });
+      }, i * 180);
+    });
+  }
+
   function checkAllGreenAndUpdateFinishStatus(){
     let allGreen = true;
     ['A','S'].forEach(type => {
@@ -1258,6 +1348,7 @@
     if(allGreen && !tuningFinished){
       tuningFinished = true;
       finishBtn.classList.add('active');
+      triggerBigFirework();
     } else if(!allGreen && tuningFinished){
       tuningFinished = false;
       finishBtn.classList.remove('active');
@@ -1270,11 +1361,15 @@
   // "Sauvegarder" et "Envoyer eMail"
   function buildSaveData(){
     if(!currentData && !harmoNameInput.value.trim()){
+      if(!keyManuallyChosen){
+        alert('Choisis d\u2019abord la tonalité de l\u2019harmonica avant de sauvegarder.');
+        return null;
+      }
       const now = new Date();
       const day = pad2(now.getDate());
       const month = pad2(now.getMonth() + 1);
       const rand = Math.floor(Math.random() * 10000); // 0 à 9999
-      harmoNameInput.value = keySelect.value + rand + '-' + day + '/' + month;
+      harmoNameInput.value = keyLetterForName(keySelect.value) + rand + '-' + day + '/' + month;
     }
     const base = currentData || {};
     const data = Object.assign({}, base, {
@@ -1301,7 +1396,9 @@
   const EMAIL_RECIPIENT = 'arkia@alienbeatsrecords.com';
 
   emailBtn.addEventListener('click', async () => {
-    const { jsonText, finalName } = buildSaveData();
+    const built = buildSaveData();
+    if(!built) return;
+    const { jsonText, finalName } = built;
 
     // meilleure option (fonctionne bien sur iPad) : partage natif avec le fichier déjà joint,
     // l'utilisateur choisit "Mail" dans la fenêtre de partage du système
@@ -1345,7 +1442,9 @@
   });
 
   saveBtn.addEventListener('click', async () => {
-    const { jsonText, finalName } = buildSaveData();
+    const built = buildSaveData();
+    if(!built) return;
+    const { jsonText, finalName } = built;
 
     // vérifie (et demande si besoin) la permission d'écriture sur un handle — sans elle,
     // createWritable() échoue silencieusement sur certains navigateurs (observé sur iPad)
@@ -1671,8 +1770,7 @@
   }
 
   const PLAY_GAP_MS = 300;           // silence court = fin d'un jeu de note
-  const FINALIZE_SILENCE_MS = 3000;  // 3s sans note = on inscrit les données de la case en cours
-  const PAUSE_SILENCE_MS = 7000;     // 7s sans note = pause de l'enregistrement
+  const STABLE_MEASURES_TO_VALIDATE = 5; // validation automatique après ce nombre de mesures stables
 
   let recordingActive = false;
   let playInProgress = false;
@@ -1736,7 +1834,9 @@
     const remaining = opVal + ctrlVal - avgRaw;
     cell.textContent = formatCents(remaining);
     setValueClass(cell, remaining === 0 ? 'val-0' : (remaining > 0 ? 'val-pos' : 'val-neg'));
+    const wasGreen = cell.classList.contains('win-cell');
     cell.classList.toggle('win-cell', remaining === 0 || remaining === 1);
+    if(cell.classList.contains('win-cell') && !wasGreen) triggerCellFirework(cell);
     updateAlertState(cell);
     mirrorReedRemaining(target.type, target.hole);
     checkAllGreenAndUpdateFinishStatus();
@@ -1781,13 +1881,10 @@
     if(!ignored) accumulatedDeviations.push(cents);
 
     if(accumulatedDeviations.length === 0){
-      // aucune mesure valable retenue jusqu'ici (celle-ci a été ignorée, et rien avant) :
-      // on affiche "?" dans la base et on force le clignotement de l'alerte
+      // aucune mesure valable retenue jusqu'ici (celle-ci a été ignorée, et rien avant) : on garde
+      // l'écart précédemment affiché dans la base (ne pas l'écraser) et on ajoute juste l'alerte
       const reed = document.getElementById('reed-base-' + target.type + '-' + target.hole);
-      if(reed){
-        setReedBaseText(reed, '?');
-        reed.classList.add('alert-cell');
-      }
+      if(reed) reed.classList.add('alert-cell');
       recordStatus.classList.remove('error');
       recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — son ignoré (trop éloigné de HarmonicaBox initial, écart de plus de 40 ¢). '
         + 'Aucune mesure valable retenue pour l\u2019instant.';
@@ -1802,11 +1899,15 @@
     if(targetWasEmpty){
       recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — ' + accumulatedDeviations.length + ' mesure(s) prise(s)'
         + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote;
+      if(accumulatedDeviations.length >= STABLE_MEASURES_TO_VALIDATE){
+        finalizeSelectedCellData(); // écrit HarmonicaBox initial + Reste à faire, puis repart d'un cycle vierge
+        recordStatus.innerHTML += '<br><b>Case validée automatiquement</b> après ' + STABLE_MEASURES_TO_VALIDATE + ' mesures stables.';
+      }
     } else {
       displayRemaining(target, avg);
       const cell = document.getElementById('cur-' + target.type + '-' + target.hole);
       if(cell.classList.contains('win-cell')){
-        recordStatus.innerHTML = '<b style="color:var(--in-tune)">Gagné</b> — case ' + targetLabel(target) + '.'
+        recordStatus.innerHTML = '<b style="color:var(--in-tune)">Gagné</b> — case ' + targetLabel(target) + ' (' + accumulatedDeviations.length + ' mesure(s) retenue(s)).'
           + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote;
       } else {
         recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — moyenne mise à jour en direct (' + accumulatedDeviations.length + ' mesure(s))'
@@ -1869,9 +1970,25 @@
     const t0 = currentPlaySamples[0].t;
     const t1 = currentPlaySamples[currentPlaySamples.length-1].t;
     const duration = t1 - t0;
-    let mid = currentPlaySamples.filter(s => s.t >= t0 + duration*0.25 && s.t <= t0 + duration*0.75);
-    if(mid.length === 0) mid = currentPlaySamples; // jeu trop court : on garde tout
-    const avgFreq = mid.reduce((a,s) => a + s.freq, 0) / mid.length;
+
+    // 1) on écarte les 10% du début et les 10% de la fin (par position dans la durée du jeu),
+    // pour éviter les attaques et relâchements instables
+    let trimmed = currentPlaySamples.filter(s => s.t >= t0 + duration*0.10 && s.t <= t0 + duration*0.90);
+    if(trimmed.length === 0) trimmed = currentPlaySamples; // jeu trop court : on garde tout
+
+    // 2) sur ce qui reste, on écarte les échantillons à plus d'un écart-type de la moyenne —
+    // ça élimine le souffle instable qui pourrait s'être glissé dans la portion centrale
+    const freqs = trimmed.map(s => s.freq);
+    const mean = freqs.reduce((a,b) => a+b, 0) / freqs.length;
+    let stable = trimmed;
+    if(freqs.length >= 2){
+      const variance = freqs.reduce((a,f) => a + (f-mean)*(f-mean), 0) / freqs.length;
+      const std = Math.sqrt(variance);
+      const filtered = trimmed.filter(s => Math.abs(s.freq - mean) <= std);
+      if(filtered.length > 0) stable = filtered;
+    }
+
+    const avgFreq = stable.reduce((a,s) => a + s.freq, 0) / stable.length;
     currentPlaySamples = [];
 
     if(recordingActive && selectedCell){
@@ -1924,29 +2041,12 @@
 
     if(freq !== -1){
       lastValidSampleAt = now;
-      if(isPaused){ isPaused = false; updatePauseButtonUI(); } // reprise automatique après une pause pour silence
       if(!playInProgress){ playInProgress = true; currentPlaySamples = []; }
       currentPlaySamples.push({ freq, t: now });
     } else {
       if(playInProgress && (now - lastValidSampleAt) > PLAY_GAP_MS){
         playInProgress = false;
         finalizeCurrentPlaySamples();
-      }
-      if(recordingActive && !isPaused){
-        const silence = now - lastValidSampleAt;
-        if(selectedCell && accumulatedDeviations.length > 0 && silence > FINALIZE_SILENCE_MS){
-          const doneTarget = selectedCell;
-          finalizeSelectedCellData();
-          recordStatus.classList.remove('error');
-          recordStatus.innerHTML = 'Case <b>' + targetLabel(doneTarget) + '</b> enregistrée (silence). Sélectionne la prochaine case, ou continue sur celle-ci.';
-        }
-        if(silence > PAUSE_SILENCE_MS){
-          if(selectedCell) finalizeSelectedCellData(); // défensif, normalement déjà fait à 3s
-          isPaused = true;
-          updatePauseButtonUI();
-          recordStatus.classList.remove('error');
-          recordStatus.innerHTML = 'Aucune note depuis 7 s — en pause. Rejoue une note pour reprendre.';
-        }
       }
     }
   }
