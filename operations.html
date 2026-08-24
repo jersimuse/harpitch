@@ -205,6 +205,26 @@
     font-size: 11px;
     color: var(--text-dim);
   }
+  .model-row{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap: 18px;
+    margin: 10px 0;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .model-row label{
+    display:flex;
+    align-items:center;
+    gap: 5px;
+    cursor: pointer;
+  }
+  .model-row input[type="radio"]{
+    accent-color: var(--gold);
+    cursor: pointer;
+  }
   .key-row select{
     background: var(--bg);
     color: var(--text);
@@ -577,6 +597,7 @@
   }
   /* base de l'anche : uniquement l'écart brut mesuré, couleur unique et discrète, statique */
   .reed-base{
+    position: relative;
     width: 28px;
     height: 28px;
     margin-top: -1px;
@@ -619,6 +640,20 @@
     background-size: contain;
     animation: alert-blink 1s ease-in-out infinite;
   }
+  /* la base a un fond opaque (var(--bg)) : un z-index négatif se retrouverait masqué derrière ce
+     fond. On peint donc le triangle par-dessus (z-index 0), et on remonte le texte au-dessus (1). */
+  .reed-base.alert-cell::before{
+    content: '';
+    position: absolute;
+    inset: 1px;
+    z-index: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 3 L21.5 19.5 L2.5 19.5 Z' fill='rgba(214,69,80,0.16)' stroke='%23d64550' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    animation: alert-blink 1s ease-in-out infinite;
+  }
+  .reed-base .reed-value{ position: relative; z-index: 1; }
   @keyframes alert-blink{
     0%, 100% { opacity: 1; }
     50% { opacity: 0.2; }
@@ -635,6 +670,10 @@
         <div class="harmo-id-row">
           <span class="seq-label">Numéro d'harmonica&nbsp;:</span>
           <input type="text" id="harmoName" class="harmo-name-input">
+        </div>
+        <div class="model-row">
+          <label><input type="radio" name="harmoModel" value="origin" id="modelOrigin"> Origin</label>
+          <label><input type="radio" name="harmoModel" value="signature" id="modelSignature" checked> Signature</label>
         </div>
         <div class="key-row">
           <span>Tonalité de l'harmonica&nbsp;:</span>
@@ -653,7 +692,7 @@
             <option value="F#">F#</option>
           </select>
         </div>
-        <div class="key-row">
+        <div class="key-row" style="margin-top: 14px;">
           <span>Accordage&nbsp;:</span>
           <select id="harmoTuning">
             <option value="richter" selected>Richter</option>
@@ -847,15 +886,22 @@
   const keySelect = document.getElementById('harmoKey');
   const tuningSelect = document.getElementById('harmoTuning');
 
-  // trois tableaux de correspondances, selon le groupe de tonalités de l'harmonica.
-  // Pour l'instant toutes les cases valent -17 ; à affiner plus tard.
-  const CORRESPONDANCES_BOX = {
-    G: { A: Array(10).fill(-17), S: Array(10).fill(-17) },
-    C: { A: Array(10).fill(-17), S: Array(10).fill(-17) },
-    E: { A: Array(10).fill('?'), S: Array(10).fill('?') },
+  // six tableaux de correspondances : un par modèle d'harmonica (Signature / Origin) croisé avec
+  // le groupe de tonalités. Pour l'instant toutes les cases valent "?" ; à affiner plus tard.
+  const CORRESPONDANCES = {
+    signature: {
+      G: { A: [15, 12, 1, 6, 1, 6, 6, 9, 6, 11], S: [13, 5, 10, 10, 5, 10, 13, 10, 15, 15] },
+      C: { A: [11, 5, 3, 6, -1, 8, 8, 13, 8, 9], S: [13, 3, 7, 15, 10, 15, 15, 13, 24, 27] },
+      E: { A: Array(10).fill('?'), S: Array(10).fill('?') },
+    },
+    origin: {
+      G: { A: [15, 12, 1, 6, 1, 6, 6, 9, 6, 11], S: [13, 5, 10, 10, 5, 10, 13, 10, 15, 15] },
+      C: { A: [6, 3, -2, 10, 1, 7, 6, 9, 4, 8], S: [7, 1, 6, 18, 13, 16, 17, 13, 19, 20] },
+      E: { A: Array(10).fill('?'), S: Array(10).fill('?') },
+    },
   };
 
-  // détermine quel tableau ("CorrespondancesBox") s'applique selon la tonalité de l'harmonica
+  // détermine quel tableau s'applique selon la tonalité de l'harmonica
   function correspondancesBoxGroupFor(harmonicaKey){
     if(['G','Ab','A'].includes(harmonicaKey)) return 'G';
     if(['Bb','B','C','Db','D'].includes(harmonicaKey)) return 'C';
@@ -863,9 +909,21 @@
     return 'C';
   }
 
-  // affiche les valeurs de CorrespondancesBox au-dessus de chaque base d'anche correspondante
+  // modèle d'harmonica actuellement sélectionné (Signature par défaut)
+  function getHarmoModel(){
+    const checked = document.querySelector('input[name="harmoModel"]:checked');
+    return checked ? checked.value : 'signature';
+  }
+
+  function setHarmoModel(model){
+    const id = model === 'origin' ? 'modelOrigin' : 'modelSignature';
+    const el = document.getElementById(id);
+    if(el) el.checked = true;
+  }
+
+  // affiche les valeurs de Correspondances (modèle + tonalité) au-dessus de chaque base d'anche
   function renderCorrespondancesBox(){
-    const box = CORRESPONDANCES_BOX[correspondancesBoxGroupFor(keySelect.value)];
+    const box = CORRESPONDANCES[getHarmoModel()][correspondancesBoxGroupFor(keySelect.value)];
     ['A','S'].forEach(type => {
       for(let h=1; h<=10; h++){
         const el = document.getElementById('reed-correspond-' + type + '-' + h);
@@ -906,7 +964,7 @@
       setValueClass(cell, valClass(val));
       if(computeWin){
         const num = parseCellNumber(cell.textContent);
-        cell.classList.toggle('win-cell', num !== null && Math.abs(num) <= 1);
+        cell.classList.toggle('win-cell', num !== null && (num === 0 || num === 1));
       }
       if(prefix === 'cur'){
         updateAlertState(cell);
@@ -918,12 +976,21 @@
 
   // applique une rangée de valeurs chargées sur la base des anches : texte seul, jamais de couleur
   // dynamique (elle reste unique et discrète, comme le veut sa conception).
+  // écrit le texte de la base d'une anche dans un petit conteneur interne, pour qu'il reste
+  // au-dessus du triangle d'alerte (voir .reed-base .reed-value en CSS)
+  function setReedBaseText(reed, text){
+    reed.innerHTML = text ? ('<span class="reed-value">' + text + '</span>') : '';
+  }
+
   function applyLoadedReedBase(type, values){
     const holes = [1,2,3,4,5,6,7,8,9,10];
     holes.forEach((h, i) => {
       const val = values && values[i] !== undefined ? values[i] : '–';
       const reed = document.getElementById('reed-base-' + type + '-' + h);
-      if(reed) reed.textContent = (val === '–') ? '' : val;
+      if(reed){
+        setReedBaseText(reed, (val === '–') ? '' : val);
+        updateAlertState(reed);
+      }
     });
   }
 
@@ -963,7 +1030,8 @@
   function updateReedBase(type, hole, avg){
     const reed = document.getElementById('reed-base-' + type + '-' + hole);
     if(!reed) return;
-    reed.textContent = formatCents(avg);
+    setReedBaseText(reed, formatCents(avg));
+    updateAlertState(reed);
   }
 
   function resetOperationsAndControlTables(){
@@ -974,7 +1042,7 @@
         if(cur){ cur.textContent = ''; cur.className = 'val-empty'; }
         if(ctrl){ ctrl.textContent = ''; ctrl.className = 'val-empty'; }
         const reedBase = document.getElementById('reed-base-' + type + '-' + hole);
-        if(reedBase) reedBase.textContent = '';
+        if(reedBase){ reedBase.textContent = ''; updateAlertState(reedBase); }
         mirrorReedRemaining(type, hole);
       }
     });
@@ -987,7 +1055,7 @@
       for(let hole=1; hole<=10; hole++){
         const opVal = parseCellNumber(document.getElementById('op-' + type + '-' + hole).textContent);
         const curCell = document.getElementById('cur-' + type + '-' + hole);
-        if(curCell && opVal !== null && Math.abs(opVal) <= 1){
+        if(curCell && opVal !== null && (opVal === 0 || opVal === 1)){
           curCell.classList.add('win-cell');
         }
         mirrorReedRemaining(type, hole);
@@ -1012,6 +1080,7 @@
     harmoNameInput.value = data.harmonica || '';
     if(data.tonalite) keySelect.value = data.tonalite;
     tuningSelect.value = data.accordage && TUNINGS[data.accordage] ? data.accordage : 'richter';
+    setHarmoModel(data.modele === 'origin' ? 'origin' : 'signature');
     referenceSequence = data.reference && data.reference.A && data.reference.S ? data.reference : { A: [], S: [] };
     harmonicaSouffleInitial = data.enregistree && data.enregistree.A && data.enregistree.S ? data.enregistree : { A: [], S: [] };
     if(data.referenceA4){
@@ -1055,6 +1124,9 @@
   }
 
   keySelect.addEventListener('change', renderCorrespondancesBox);
+  document.querySelectorAll('input[name="harmoModel"]').forEach(radio => {
+    radio.addEventListener('change', renderCorrespondancesBox);
+  });
   renderCorrespondancesBox();
 
   // Détection de la File System Access API (Chrome/Edge sur PC, potentiellement Chrome sur iPad
@@ -1209,6 +1281,7 @@
       harmonica: harmoNameInput.value,
       tonalite: keySelect.value,
       accordage: tuningSelect.value,
+      modele: getHarmoModel(),
       accordageTermine: tuningFinished,
       harmonicaBoxInitial: { A: collectRow('ctrl', 'A'), S: collectRow('ctrl', 'S') },
       harmonicaFinal: {
@@ -1486,12 +1559,35 @@
     noteOut.style.color = color;
   }
 
+  const MIC_IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes sans détection valable : coupure auto du micro
+  let lastValidPitchAt = 0;
+
+  // plage jouable de l'harmonica en cours (tonalité + accordage), élargie d'un ton de chaque côté :
+  // du 1 soufflé - 1 ton au 10 soufflé + 1 ton
+  function getPlayableFreqRange(){
+    const offset = KEY_OFFSETS[keySelect.value];
+    const tuning = tuningSelect.value;
+    const lowMidi = BLOW_C_MIDI[0] + offset + tuningAdjust(tuning, 'S', 1) - 1;   // -1/2 ton = -1 demi-ton
+    const highMidi = BLOW_C_MIDI[9] + offset + tuningAdjust(tuning, 'S', 10) + 1; // +1/2 ton = +1 demi-ton
+    const refA4 = parseFloat(refSelect.value);
+    return {
+      lowHz: refA4 * Math.pow(2, (lowMidi - 69) / 12),
+      highHz: refA4 * Math.pow(2, (highMidi - 69) / 12)
+    };
+  }
+
   function process(){
+    if(listening && lastValidPitchAt && (performance.now() - lastValidPitchAt) > MIC_IDLE_TIMEOUT_MS){
+      stop();
+      return;
+    }
     const buf = new Float32Array(analyser.fftSize);
     analyser.getFloatTimeDomainData(buf);
     const freq = detectPitch(buf, audioCtx.sampleRate);
 
     if(freq !== -1 && freq > 60 && freq < 3200){
+      const { lowHz, highHz } = getPlayableFreqRange();
+      if(freq >= lowHz && freq <= highHz) lastValidPitchAt = performance.now();
       const refA4 = parseFloat(refSelect.value);
       const expectedMidi = (recordingActive && selectedCell)
         ? (selectedCell.type === 'A' ? expectedDrawMidi : expectedBlowMidi)[selectedCell.hole - 1]
@@ -1536,6 +1632,7 @@
     source.connect(analyser);
 
     listening = true;
+    lastValidPitchAt = performance.now();
     toggleBtn.textContent = 'Couper le micro';
     toggleBtn.classList.add('listening');
     statusEl.textContent = '';
@@ -1639,7 +1736,7 @@
     const remaining = opVal + ctrlVal - avgRaw;
     cell.textContent = formatCents(remaining);
     setValueClass(cell, remaining === 0 ? 'val-0' : (remaining > 0 ? 'val-pos' : 'val-neg'));
-    cell.classList.toggle('win-cell', Math.abs(remaining) <= 1);
+    cell.classList.toggle('win-cell', remaining === 0 || remaining === 1);
     updateAlertState(cell);
     mirrorReedRemaining(target.type, target.hole);
     checkAllGreenAndUpdateFinishStatus();
@@ -1675,22 +1772,45 @@
     const refA4 = parseFloat(refSelect.value);
     const rawCents = Math.round((12*Math.log2(avgFreq/refA4) - (expectedMidi-69)) * 100);
     const cents = octaveReducedCents(rawCents); // une octave ou plus d'écart = considérée comme la bonne note
-    accumulatedDeviations.push(cents);
+
+    // si HarmonicaBox initial a déjà une valeur pour cette case, et que ce nouveau son s'en écarte
+    // de plus de 40 cents, on l'ignore dans le calcul de la moyenne (probablement une note parasite)
+    const ctrlCell = document.getElementById('ctrl-' + target.type + '-' + target.hole);
+    const ctrlVal = ctrlCell ? parseCellNumber(ctrlCell.textContent) : null;
+    const ignored = ctrlVal !== null && Math.abs(cents - ctrlVal) > 40;
+    if(!ignored) accumulatedDeviations.push(cents);
+
+    if(accumulatedDeviations.length === 0){
+      // aucune mesure valable retenue jusqu'ici (celle-ci a été ignorée, et rien avant) :
+      // on affiche "?" dans la base et on force le clignotement de l'alerte
+      const reed = document.getElementById('reed-base-' + target.type + '-' + target.hole);
+      if(reed){
+        setReedBaseText(reed, '?');
+        reed.classList.add('alert-cell');
+      }
+      recordStatus.classList.remove('error');
+      recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — son ignoré (trop éloigné de HarmonicaBox initial, écart de plus de 40 ¢). '
+        + 'Aucune mesure valable retenue pour l\u2019instant.';
+      return;
+    }
+
     const avg = robustAverage(accumulatedDeviations);
     updateReedBase(target.type, target.hole, avg);
 
+    const ignoredNote = ignored ? '<br><span style="color:var(--flat-sharp)">Un son a été ignoré (trop éloigné de HarmonicaBox initial).</span>' : '';
+
     if(targetWasEmpty){
       recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — ' + accumulatedDeviations.length + ' mesure(s) prise(s)'
-        + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>';
+        + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote;
     } else {
       displayRemaining(target, avg);
       const cell = document.getElementById('cur-' + target.type + '-' + target.hole);
       if(cell.classList.contains('win-cell')){
         recordStatus.innerHTML = '<b style="color:var(--in-tune)">Gagné</b> — case ' + targetLabel(target) + '.'
-          + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>';
+          + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote;
       } else {
         recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — moyenne mise à jour en direct (' + accumulatedDeviations.length + ' mesure(s))'
-          + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>';
+          + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote;
       }
     }
   }
@@ -1768,7 +1888,7 @@
     updateAlertState(curCell);
     ctrlCell.textContent = ''; ctrlCell.className = 'val-empty';
     const reedBase = document.getElementById('reed-base-' + type + '-' + hole);
-    if(reedBase) reedBase.textContent = '';
+    if(reedBase){ reedBase.textContent = ''; updateAlertState(reedBase); }
     mirrorReedRemaining(type, hole);
     checkAllGreenAndUpdateFinishStatus();
     // la case reste sélectionnée (encadrée) après suppression — seul un clic sur une autre case change ça
