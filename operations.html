@@ -1011,7 +1011,7 @@
       setValueClass(cell, valClass(val));
       if(computeWin){
         const num = parseCellNumber(cell.textContent);
-        cell.classList.toggle('win-cell', num !== null && (num === 0 || num === 1));
+        cell.classList.toggle('win-cell', num !== null && (num === 0 || num === -1));
       }
       if(prefix === 'cur'){
         updateAlertState(cell);
@@ -1102,7 +1102,7 @@
       for(let hole=1; hole<=10; hole++){
         const opVal = parseCellNumber(document.getElementById('op-' + type + '-' + hole).textContent);
         const curCell = document.getElementById('cur-' + type + '-' + hole);
-        if(curCell && opVal !== null && (opVal === 0 || opVal === 1)){
+        if(curCell && opVal !== null && (opVal === 0 || opVal === -1)){
           curCell.classList.add('win-cell');
         }
         mirrorReedRemaining(type, hole);
@@ -1817,7 +1817,6 @@
   }
 
   const PLAY_GAP_MS = 300;           // silence court = fin d'un jeu de note
-  const STABLE_MEASURES_TO_VALIDATE = 5; // validation automatique après ce nombre de mesures stables
 
   let recordingActive = false;
   let audioRecorderNode = null;       // capture audio brute en parallèle de l'analyseur
@@ -1889,7 +1888,7 @@
     cell.textContent = formatCents(remaining);
     setValueClass(cell, remaining === 0 ? 'val-0' : (remaining > 0 ? 'val-pos' : 'val-neg'));
     const wasGreen = cell.classList.contains('win-cell');
-    cell.classList.toggle('win-cell', remaining === 0 || remaining === 1);
+    cell.classList.toggle('win-cell', remaining === 0 || remaining === -1);
     if(cell.classList.contains('win-cell') && !wasGreen) triggerCellFirework(cell);
     updateAlertState(cell);
     mirrorReedRemaining(target.type, target.hole);
@@ -1927,11 +1926,20 @@
     const rawCents = Math.round((12*Math.log2(avgFreq/refA4) - (expectedMidi-69)) * 100);
     const cents = octaveReducedCents(rawCents); // une octave ou plus d'écart = considérée comme la bonne note
 
-    // si HarmonicaBox initial a déjà une valeur pour cette case, et que ce nouveau son s'en écarte
-    // de plus de 40 cents, on l'ignore dans le calcul de la moyenne (probablement une note parasite)
+    // deux filtres de rejet, indépendants l'un de l'autre :
+    // 1) toujours actif : le son ne doit pas s'écarter de plus de 40 cents de la note attendue
+    //    elle-même (rattrape notamment le souffle lors d'une toute première mesure)
+    // 2) actif seulement si HarmonicaBox initial a déjà une valeur pour cette case : le son ne
+    //    doit pas non plus s'en écarter de plus de 40 cents
     const ctrlCell = document.getElementById('ctrl-' + target.type + '-' + target.hole);
     const ctrlVal = ctrlCell ? parseCellNumber(ctrlCell.textContent) : null;
-    const ignored = ctrlVal !== null && Math.abs(cents - ctrlVal) > 40;
+    const farFromExpected = Math.abs(cents) > 40;
+    const farFromCtrl = ctrlVal !== null && Math.abs(cents - ctrlVal) > 40;
+    const ignored = farFromExpected || farFromCtrl;
+    const ignoreReason = farFromExpected ? 'trop éloigné de la note attendue' : 'trop éloigné de HarmonicaBox initial';
+    // on précise l'écart mesuré dans le commentaire tant qu'il reste sous 250 cents (au-delà,
+    // ce n'est plus une information utile — probablement du bruit ou une note sans rapport)
+    const ignoredCentsNote = Math.abs(cents) < 250 ? (' (écart mesuré : ' + formatCents(cents) + ' ¢)') : '';
     if(!ignored) accumulatedDeviations.push(cents);
 
     if(accumulatedDeviations.length === 0){
@@ -1940,7 +1948,7 @@
       const reed = document.getElementById('reed-base-' + target.type + '-' + target.hole);
       if(reed) reed.classList.add('alert-cell');
       recordStatus.classList.remove('error');
-      recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — son ignoré (trop éloigné de HarmonicaBox initial, écart de plus de 40 ¢). '
+      recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — son ignoré (' + ignoreReason + ', écart de plus de 40 ¢)' + ignoredCentsNote + '. '
         + 'Aucune mesure valable retenue pour l\u2019instant.';
       return;
     }
@@ -1948,15 +1956,11 @@
     const avg = robustAverage(accumulatedDeviations);
     updateReedBase(target.type, target.hole, avg);
 
-    const ignoredNote = ignored ? '<br><span style="color:var(--flat-sharp)">Un son a été ignoré (trop éloigné de HarmonicaBox initial).</span>' : '';
+    const ignoredNote = ignored ? '<br><span style="color:var(--flat-sharp)">Un son a été ignoré (' + ignoreReason + ')' + ignoredCentsNote + '.</span>' : '';
 
     if(targetWasEmpty){
       recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — ' + accumulatedDeviations.length + ' mesure(s) prise(s)'
         + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote;
-      if(accumulatedDeviations.length >= STABLE_MEASURES_TO_VALIDATE){
-        finalizeSelectedCellData(); // écrit HarmonicaBox initial + Reste à faire, puis repart d'un cycle vierge
-        recordStatus.innerHTML += '<br><b>Case validée automatiquement</b> après ' + STABLE_MEASURES_TO_VALIDATE + ' mesures stables.';
-      }
     } else {
       displayRemaining(target, avg);
       const cell = document.getElementById('cur-' + target.type + '-' + target.hole);
