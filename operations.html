@@ -826,6 +826,14 @@
               <option value="444">444 Hz</option>
             </select>
           </div>
+          <div class="key-row" style="margin-top: 8px;">
+            <span>Sensibilité micro&nbsp;:</span>
+            <select id="micGain">
+              <option value="1">Normale</option>
+              <option value="3" selected>Élevée</option>
+              <option value="6">Très élevée</option>
+            </select>
+          </div>
           <button id="toggle">Activer le micro</button>
         </div>
 
@@ -1571,6 +1579,11 @@
   }
 
   let audioCtx, analyser, source, mediaStream;
+  let micGainNode = null;
+  const micGainSelect = document.getElementById('micGain');
+  micGainSelect.addEventListener('change', () => {
+    if(micGainNode) micGainNode.gain.value = parseFloat(micGainSelect.value);
+  });
   let rafId = null;
   let listening = false;
 
@@ -1743,14 +1756,18 @@
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 2048;
     source = audioCtx.createMediaStreamSource(mediaStream);
-    source.connect(analyser);
+    micGainNode = audioCtx.createGain();
+    micGainNode.gain.value = parseFloat(micGainSelect.value);
+    source.connect(micGainNode);
+    micGainNode.connect(analyser);
 
     // capture audio brute en parallèle (pour le bouton Play "écouter le dernier son enregistré") :
-    // un gain à 0 évite tout retour audible du micro pendant l'enregistrement
+    // un gain à 0 évite tout retour audible du micro pendant l'enregistrement — elle part du signal
+    // déjà amplifié (micGainNode), pour que le son rejoué reflète la même sensibilité
     audioRecorderNode = audioCtx.createScriptProcessor(4096, 1, 1);
     const silentGain = audioCtx.createGain();
     silentGain.gain.value = 0;
-    source.connect(audioRecorderNode);
+    micGainNode.connect(audioRecorderNode);
     audioRecorderNode.connect(silentGain);
     silentGain.connect(audioCtx.destination);
     audioRecorderNode.onaudioprocess = (e) => {
