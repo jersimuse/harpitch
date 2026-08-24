@@ -435,6 +435,20 @@
   }
   button.delete-btn-compact:hover:not(:disabled){ background: rgba(214,69,80,0.1); }
   button.delete-btn-compact:disabled{ opacity: 0.35; cursor: not-allowed; }
+  button.play-btn-compact{
+    display:flex; align-items:center; justify-content:center;
+    width: 46px;
+    flex-shrink: 0;
+    font-size: 14px;
+    border-radius: 999px;
+    border: 1px solid var(--text);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    transition: background 120ms ease;
+  }
+  button.play-btn-compact:hover:not(:disabled){ background: rgba(237,233,223,0.1); }
+  button.play-btn-compact:disabled{ opacity: 0.35; cursor: not-allowed; }
 
   .harmo-title{
     font-family: 'JetBrains Mono', monospace;
@@ -771,6 +785,7 @@
           <button class="pause-btn" id="pauseBtn" disabled title="Mettre en pause / reprendre">
             <span class="bar"></span><span class="bar"></span>
           </button>
+          <button class="play-btn-compact" id="playBtn" disabled title="Écouter le dernier son enregistré (nettoyé)">▶</button>
           <button class="delete-btn-compact" id="deleteBtn" disabled title="Effacer la case sélectionnée">🗑️</button>
         </div>
         <div class="status" id="recordStatus">&nbsp;</div>
@@ -1730,6 +1745,19 @@
     source = audioCtx.createMediaStreamSource(mediaStream);
     source.connect(analyser);
 
+    // capture audio brute en parallèle (pour le bouton Play "écouter le dernier son enregistré") :
+    // un gain à 0 évite tout retour audible du micro pendant l'enregistrement
+    audioRecorderNode = audioCtx.createScriptProcessor(4096, 1, 1);
+    const silentGain = audioCtx.createGain();
+    silentGain.gain.value = 0;
+    source.connect(audioRecorderNode);
+    audioRecorderNode.connect(silentGain);
+    silentGain.connect(audioCtx.destination);
+    audioRecorderNode.onaudioprocess = (e) => {
+      if(!isCapturingPlayAudio) return;
+      recordingChunks.push({ t: performance.now(), samples: e.inputBuffer.getChannelData(0).slice() });
+    };
+
     listening = true;
     lastValidPitchAt = performance.now();
     toggleBtn.textContent = 'Couper le micro';
@@ -1740,7 +1768,9 @@
 
   function stop(){
     listening = false;
+    isCapturingPlayAudio = false;
     if(rafId) cancelAnimationFrame(rafId);
+    if(audioRecorderNode){ audioRecorderNode.disconnect(); audioRecorderNode.onaudioprocess = null; audioRecorderNode = null; }
     if(mediaStream) mediaStream.getTracks().forEach(t => t.stop());
     if(audioCtx) audioCtx.close();
     toggleBtn.textContent = 'Activer le micro';
@@ -1773,6 +1803,11 @@
   const STABLE_MEASURES_TO_VALIDATE = 5; // validation automatique après ce nombre de mesures stables
 
   let recordingActive = false;
+  let audioRecorderNode = null;       // capture audio brute en parallèle de l'analyseur
+  let isCapturingPlayAudio = false;   // true pendant qu'un jeu de note est en cours
+  let recordingChunks = [];           // morceaux audio bruts du jeu de note en cours
+  let lastCleanedAudio = null;        // { samples, sampleRate } du dernier son nettoyé, pour le bouton Play
+  let playbackAudioCtx = null;        // contexte audio dédié à la lecture (indépendant du micro)
   let playInProgress = false;
   let currentPlaySamples = [];
   let lastValidSampleAt = 0;
@@ -1791,6 +1826,8 @@
 
   // ---- Sélection d'une case (persistante : ne change que si l'utilisateur en clique une autre) ----
   const deleteBtn = document.getElementById('deleteBtn');
+  const playBtn = document.getElementById('playBtn');
+  playBtn.addEventListener('click', playLastCleanedAudio);
   let selectedCell = null; // { type, hole } — case actuellement encadrée, sert à la fois de cible
                             // d'enregistrement et de cible de suppression
 
@@ -1989,11 +2026,65 @@
     }
 
     const avgFreq = stable.reduce((a,s) => a + s.freq, 0) / stable.length;
+
+    // construit le son "nettoyé" : les morceaux audio bruts correspondant aux échantillons de
+    // hauteur retenus (stable) sont conservés et mis bout à bout ; ceux qui correspondent aux
+    // échantillons écartés (souffle, bords du jeu) sont retirés
+    lastCleanedAudio = buildCleanedAudioBuffer(currentPlaySamples, stable, recordingChunks, audioCtx ? audioCtx.sampleRate : 44100);
+    if(playBtn) playBtn.disabled = !lastCleanedAudio;
+
     currentPlaySamples = [];
+    recordingChunks = [];
 
     if(recordingActive && selectedCell){
       computeAndAccumulate(selectedCell, avgFreq);
     }
+  }
+
+  // partitionne les morceaux audio bruts selon les échantillons de hauteur retenus ("stable") ou
+  // non, et concatène uniquement les morceaux majoritairement associés à des échantillons retenus
+  function buildCleanedAudioBuffer(allSamples, stableSamples, chunks, sampleRate){
+    if(!chunks || chunks.length === 0 || allSamples.length === 0) return null;
+    const stableTimes = new Set(stableSamples.map(s => s.t));
+    const sortedChunks = chunks.slice().sort((a,b) => a.t - b.t);
+
+    const keptChunks = [];
+    let winStart = sortedChunks.length > 0 ? sortedChunks[0].t - 200 : 0;
+    sortedChunks.forEach(chunk => {
+      const relevant = allSamples.filter(s => s.t > winStart && s.t <= chunk.t);
+      const relevantStable = relevant.filter(s => stableTimes.has(s.t));
+      // on garde le morceau si on n'a pas d'info (silence) ou si la majorité de ses échantillons
+      // de hauteur associés ont été retenus
+      if(relevant.length === 0 || relevantStable.length / relevant.length >= 0.5){
+        keptChunks.push(chunk.samples);
+      }
+      winStart = chunk.t;
+    });
+
+    if(keptChunks.length === 0) return null;
+    const totalLength = keptChunks.reduce((a,c) => a + c.length, 0);
+    if(totalLength === 0) return null;
+    const merged = new Float32Array(totalLength);
+    let offset = 0;
+    keptChunks.forEach(c => { merged.set(c, offset); offset += c.length; });
+    return { samples: merged, sampleRate };
+  }
+
+  // lit le dernier son "nettoyé" mémorisé, via un contexte audio dédié (indépendant du micro,
+  // donc utilisable même si le micro est coupé entre-temps)
+  function playLastCleanedAudio(){
+    if(!lastCleanedAudio || !lastCleanedAudio.samples || lastCleanedAudio.samples.length === 0){
+      recordStatus.classList.remove('error');
+      recordStatus.innerHTML = 'Aucun son enregistré à écouter pour le moment.';
+      return;
+    }
+    if(!playbackAudioCtx) playbackAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const buffer = playbackAudioCtx.createBuffer(1, lastCleanedAudio.samples.length, lastCleanedAudio.sampleRate);
+    buffer.copyToChannel(lastCleanedAudio.samples, 0);
+    const src = playbackAudioCtx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(playbackAudioCtx.destination);
+    src.start();
   }
 
   deleteBtn.addEventListener('click', () => {
@@ -2041,11 +2132,17 @@
 
     if(freq !== -1){
       lastValidSampleAt = now;
-      if(!playInProgress){ playInProgress = true; currentPlaySamples = []; }
+      if(!playInProgress){
+        playInProgress = true;
+        currentPlaySamples = [];
+        recordingChunks = [];
+        isCapturingPlayAudio = true;
+      }
       currentPlaySamples.push({ freq, t: now });
     } else {
       if(playInProgress && (now - lastValidSampleAt) > PLAY_GAP_MS){
         playInProgress = false;
+        isCapturingPlayAudio = false;
         finalizeCurrentPlaySamples();
       }
     }
