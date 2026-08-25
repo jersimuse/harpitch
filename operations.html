@@ -628,6 +628,15 @@
   /* première mesure comptée dans une nouvelle moyenne (écart ou reste à faire) : bleu clair, le
      temps que d'autres mesures viennent confirmer la valeur */
   .first-measure{ color: #7ec4f2 !important; }
+  .first-measure::after{
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border: 2px solid #7ec4f2;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 2;
+  }
   /* base de l'anche : uniquement l'écart brut mesuré, couleur unique et discrète, statique */
   .reed-base{
     position: relative;
