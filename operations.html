@@ -568,6 +568,15 @@
     display:flex;
     flex-direction:column;
     align-items:center;
+    position: relative;
+  }
+  .reed-clickzone{
+    position: absolute;
+    left: 0;
+    width: 38px;
+    cursor: pointer;
+    background: transparent;
+    z-index: 5;
   }
   .reed-plate{
     width: 28px;
@@ -605,10 +614,20 @@
     background: linear-gradient(180deg, #444858, #2a2d38);
     border: 1px solid var(--panel-line);
     border-radius: 2px 2px 0 0;
+    cursor: pointer;
+  }
+  .reed-body.reed-selected{
+    border: 2px solid var(--gold);
+  }
+  .reed-base.reed-selected{
+    box-shadow: inset 0 0 0 2px var(--gold);
   }
   .reed-body-first{
     background: linear-gradient(180deg, #7ec4f2, #2c5a7a);
   }
+  /* première mesure comptée dans une nouvelle moyenne (écart ou reste à faire) : bleu clair, le
+     temps que d'autres mesures viennent confirmer la valeur */
+  .first-measure{ color: #7ec4f2 !important; }
   /* base de l'anche : uniquement l'écart brut mesuré, couleur unique et discrète, statique */
   .reed-base{
     position: relative;
@@ -625,6 +644,7 @@
     font-size: 10px;
     font-weight: 500;
     color: #c9cbd4;
+    cursor: pointer;
   }
   /* case-jumelle de "Reste à faire" : mêmes propriétés graphiques et comportement que le tableau */
   .reed-remaining{
@@ -750,32 +770,32 @@
         <div class="harmo-title">Reste à faire — vue anches</div>
         <div class="reed-row" id="reedRowA">
           <div class="reed-type-label-col"><div style="height:93px;"></div><div class="reed-type-label">A</div></div>
-          <div class="reed-unit"><div class="reed-plate"><div class="reed-body reed-body-first" style="height:66px;"></div><div class="reed-correspond" id="reed-correspond-A-1" style="bottom:27px;"></div><div class="reed-base" id="reed-base-A-1"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-1"></div><div class="reed-hole-number">1</div></div>
-          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:59px;"></div><div class="reed-correspond" id="reed-correspond-A-2" style="bottom:34px;"></div><div class="reed-base" id="reed-base-A-2"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-2"></div><div class="reed-hole-number">2</div></div>
-          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:53px;"></div><div class="reed-correspond" id="reed-correspond-A-3" style="bottom:40px;"></div><div class="reed-base" id="reed-base-A-3"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-3"></div><div class="reed-hole-number">3</div></div>
-          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:48px;"></div><div class="reed-correspond" id="reed-correspond-A-4" style="bottom:45px;"></div><div class="reed-base" id="reed-base-A-4"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-4"></div><div class="reed-hole-number">4</div></div>
-          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:43px;"></div><div class="reed-correspond" id="reed-correspond-A-5" style="bottom:50px;"></div><div class="reed-base" id="reed-base-A-5"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-5"></div><div class="reed-hole-number">5</div></div>
-          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:39px;"></div><div class="reed-correspond" id="reed-correspond-A-6" style="bottom:54px;"></div><div class="reed-base" id="reed-base-A-6"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-6"></div><div class="reed-hole-number">6</div></div>
-          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:35px;"></div><div class="reed-correspond" id="reed-correspond-A-7" style="bottom:58px;"></div><div class="reed-base" id="reed-base-A-7"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-7"></div><div class="reed-hole-number">7</div></div>
-          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:32px;"></div><div class="reed-correspond" id="reed-correspond-A-8" style="bottom:61px;"></div><div class="reed-base" id="reed-base-A-8"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-8"></div><div class="reed-hole-number">8</div></div>
-          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:28px;"></div><div class="reed-correspond" id="reed-correspond-A-9" style="bottom:65px;"></div><div class="reed-base" id="reed-base-A-9"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-9"></div><div class="reed-hole-number">9</div></div>
-          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:26px;"></div><div class="reed-correspond" id="reed-correspond-A-10" style="bottom:67px;"></div><div class="reed-base" id="reed-base-A-10"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-10"></div><div class="reed-hole-number">10</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body reed-body-first" style="height:66px;" id="reed-body-A-1"></div><div class="reed-correspond" id="reed-correspond-A-1" style="bottom:27px;"></div><div class="reed-base" id="reed-base-A-1"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-1"></div><div class="reed-clickzone" id="reed-clickzone-A-1" style="top:0px; height:133px;"></div><div class="reed-hole-number">1</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:59px;" id="reed-body-A-2"></div><div class="reed-correspond" id="reed-correspond-A-2" style="bottom:34px;"></div><div class="reed-base" id="reed-base-A-2"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-2"></div><div class="reed-clickzone" id="reed-clickzone-A-2" style="top:0px; height:133px;"></div><div class="reed-hole-number">2</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:53px;" id="reed-body-A-3"></div><div class="reed-correspond" id="reed-correspond-A-3" style="bottom:40px;"></div><div class="reed-base" id="reed-base-A-3"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-3"></div><div class="reed-clickzone" id="reed-clickzone-A-3" style="top:0px; height:133px;"></div><div class="reed-hole-number">3</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:48px;" id="reed-body-A-4"></div><div class="reed-correspond" id="reed-correspond-A-4" style="bottom:45px;"></div><div class="reed-base" id="reed-base-A-4"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-4"></div><div class="reed-clickzone" id="reed-clickzone-A-4" style="top:0px; height:133px;"></div><div class="reed-hole-number">4</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:43px;" id="reed-body-A-5"></div><div class="reed-correspond" id="reed-correspond-A-5" style="bottom:50px;"></div><div class="reed-base" id="reed-base-A-5"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-5"></div><div class="reed-clickzone" id="reed-clickzone-A-5" style="top:0px; height:133px;"></div><div class="reed-hole-number">5</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:39px;" id="reed-body-A-6"></div><div class="reed-correspond" id="reed-correspond-A-6" style="bottom:54px;"></div><div class="reed-base" id="reed-base-A-6"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-6"></div><div class="reed-clickzone" id="reed-clickzone-A-6" style="top:0px; height:133px;"></div><div class="reed-hole-number">6</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:35px;" id="reed-body-A-7"></div><div class="reed-correspond" id="reed-correspond-A-7" style="bottom:58px;"></div><div class="reed-base" id="reed-base-A-7"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-7"></div><div class="reed-clickzone" id="reed-clickzone-A-7" style="top:0px; height:133px;"></div><div class="reed-hole-number">7</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:32px;" id="reed-body-A-8"></div><div class="reed-correspond" id="reed-correspond-A-8" style="bottom:61px;"></div><div class="reed-base" id="reed-base-A-8"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-8"></div><div class="reed-clickzone" id="reed-clickzone-A-8" style="top:0px; height:133px;"></div><div class="reed-hole-number">8</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:28px;" id="reed-body-A-9"></div><div class="reed-correspond" id="reed-correspond-A-9" style="bottom:65px;"></div><div class="reed-base" id="reed-base-A-9"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-9"></div><div class="reed-clickzone" id="reed-clickzone-A-9" style="top:0px; height:133px;"></div><div class="reed-hole-number">9</div></div>
+          <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:26px;" id="reed-body-A-10"></div><div class="reed-correspond" id="reed-correspond-A-10" style="bottom:67px;"></div><div class="reed-base" id="reed-base-A-10"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-10"></div><div class="reed-clickzone" id="reed-clickzone-A-10" style="top:0px; height:133px;"></div><div class="reed-hole-number">10</div></div>
         </div>
 
         <div class="reed-divider"></div>
 
         <div class="reed-row" id="reedRowS">
           <div class="reed-type-label-col"><div style="height:93px;"></div><div class="reed-type-label">S</div></div>
-          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:26px;"></div><div class="reed-correspond" id="reed-correspond-S-10" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-10"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-10"></div><div class="reed-hole-number">10</div></div>
-          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:28px;"></div><div class="reed-correspond" id="reed-correspond-S-9" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-9"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-9"></div><div class="reed-hole-number">9</div></div>
-          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:32px;"></div><div class="reed-correspond" id="reed-correspond-S-8" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-8"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-8"></div><div class="reed-hole-number">8</div></div>
-          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:35px;"></div><div class="reed-correspond" id="reed-correspond-S-7" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-7"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-7"></div><div class="reed-hole-number">7</div></div>
-          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:39px;"></div><div class="reed-correspond" id="reed-correspond-S-6" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-6"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-6"></div><div class="reed-hole-number">6</div></div>
-          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:43px;"></div><div class="reed-correspond" id="reed-correspond-S-5" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-5"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-5"></div><div class="reed-hole-number">5</div></div>
-          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:48px;"></div><div class="reed-correspond" id="reed-correspond-S-4" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-4"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-4"></div><div class="reed-hole-number">4</div></div>
-          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:53px;"></div><div class="reed-correspond" id="reed-correspond-S-3" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-3"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-3"></div><div class="reed-hole-number">3</div></div>
-          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:59px;"></div><div class="reed-correspond" id="reed-correspond-S-2" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-2"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-2"></div><div class="reed-hole-number">2</div></div>
-          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body reed-body-first" style="height:66px;"></div><div class="reed-correspond" id="reed-correspond-S-1" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-1"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-1"></div><div class="reed-hole-number">1</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:26px;" id="reed-body-S-10"></div><div class="reed-correspond" id="reed-correspond-S-10" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-10"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-10"></div><div class="reed-clickzone" id="reed-clickzone-S-10" style="top:0px; height:133px;"></div><div class="reed-hole-number">10</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:28px;" id="reed-body-S-9"></div><div class="reed-correspond" id="reed-correspond-S-9" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-9"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-9"></div><div class="reed-clickzone" id="reed-clickzone-S-9" style="top:0px; height:133px;"></div><div class="reed-hole-number">9</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:32px;" id="reed-body-S-8"></div><div class="reed-correspond" id="reed-correspond-S-8" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-8"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-8"></div><div class="reed-clickzone" id="reed-clickzone-S-8" style="top:0px; height:133px;"></div><div class="reed-hole-number">8</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:35px;" id="reed-body-S-7"></div><div class="reed-correspond" id="reed-correspond-S-7" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-7"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-7"></div><div class="reed-clickzone" id="reed-clickzone-S-7" style="top:0px; height:133px;"></div><div class="reed-hole-number">7</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:39px;" id="reed-body-S-6"></div><div class="reed-correspond" id="reed-correspond-S-6" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-6"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-6"></div><div class="reed-clickzone" id="reed-clickzone-S-6" style="top:0px; height:133px;"></div><div class="reed-hole-number">6</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:43px;" id="reed-body-S-5"></div><div class="reed-correspond" id="reed-correspond-S-5" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-5"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-5"></div><div class="reed-clickzone" id="reed-clickzone-S-5" style="top:0px; height:133px;"></div><div class="reed-hole-number">5</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:48px;" id="reed-body-S-4"></div><div class="reed-correspond" id="reed-correspond-S-4" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-4"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-4"></div><div class="reed-clickzone" id="reed-clickzone-S-4" style="top:0px; height:133px;"></div><div class="reed-hole-number">4</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:53px;" id="reed-body-S-3"></div><div class="reed-correspond" id="reed-correspond-S-3" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-3"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-3"></div><div class="reed-clickzone" id="reed-clickzone-S-3" style="top:0px; height:133px;"></div><div class="reed-hole-number">3</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:59px;" id="reed-body-S-2"></div><div class="reed-correspond" id="reed-correspond-S-2" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-2"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-2"></div><div class="reed-clickzone" id="reed-clickzone-S-2" style="top:0px; height:133px;"></div><div class="reed-hole-number">2</div></div>
+          <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body reed-body-first" style="height:66px;" id="reed-body-S-1"></div><div class="reed-correspond" id="reed-correspond-S-1" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-1"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-1"></div><div class="reed-clickzone" id="reed-clickzone-S-1" style="top:0px; height:133px;"></div><div class="reed-hole-number">1</div></div>
         </div>
       </div>
 
@@ -921,11 +941,6 @@
 
   const harmoNameInput = document.getElementById('harmoName');
   const keySelect = document.getElementById('harmoKey');
-
-  // suit si l'utilisateur a explicitement choisi une tonalité (ne se contente pas du C par défaut) —
-  // charger un fichier qui précise déjà une tonalité compte aussi comme "connue"
-  let keyManuallyChosen = false;
-  keySelect.addEventListener('change', () => { keyManuallyChosen = true; });
 
   // lettre utilisée dans le nom généré : F# devient Fd (caractère plus sûr dans un nom de fichier)
   function keyLetterForName(k){
@@ -1074,10 +1089,11 @@
 
   // affiche dans la base de l'anche l'écart brut mesuré (celui indiqué en commentaire),
   // dans une couleur unique et discrète, sans comportement particulier.
-  function updateReedBase(type, hole, avg){
+  function updateReedBase(type, hole, avg, isFirst){
     const reed = document.getElementById('reed-base-' + type + '-' + hole);
     if(!reed) return;
     setReedBaseText(reed, formatCents(avg));
+    reed.classList.toggle('first-measure', !!isFirst);
     updateAlertState(reed);
   }
 
@@ -1125,7 +1141,7 @@
 
     currentData = data;
     harmoNameInput.value = data.harmonica || '';
-    if(data.tonalite){ keySelect.value = data.tonalite; keyManuallyChosen = true; }
+    if(data.tonalite) keySelect.value = data.tonalite;
     tuningSelect.value = data.accordage && TUNINGS[data.accordage] ? data.accordage : 'richter';
     setHarmoModel(data.modele === 'origin' ? 'origin' : 'signature');
     referenceSequence = data.reference && data.reference.A && data.reference.S ? data.reference : { A: [], S: [] };
@@ -1384,10 +1400,6 @@
   // "Sauvegarder" et "Envoyer eMail"
   function buildSaveData(){
     if(!currentData && !harmoNameInput.value.trim()){
-      if(!keyManuallyChosen){
-        alert('Choisis d\u2019abord la tonalité de l\u2019harmonica avant de sauvegarder.');
-        return null;
-      }
       const now = new Date();
       const day = pad2(now.getDate());
       const month = pad2(now.getMonth() + 1);
@@ -1817,6 +1829,7 @@
   }
 
   const PLAY_GAP_MS = 300;           // silence court = fin d'un jeu de note
+  const NOT_EMPTY_RESET_SILENCE_MS = 5000; // 5s de silence sur une case non vide = la moyenne repart de zéro
 
   let recordingActive = false;
   let audioRecorderNode = null;       // capture audio brute en parallèle de l'analyseur
@@ -1828,6 +1841,7 @@
   let currentPlaySamples = [];
   let lastValidSampleAt = 0;
   let accumulatedDeviations = [];   // écarts en cents (par rapport à la note attendue) de chaque jeu
+  let resetPendingForSilence = false; // évite de réinitialiser en boucle tant que le silence continue
   let targetWasEmpty = true;        // la case était-elle vide au moment de la sélection ?
   let isPaused = false;             // en pause (silence ou manuel)
   let pausedManually = false;       // true si la pause a été déclenchée par l'utilisateur (pas de reprise auto)
@@ -1871,7 +1885,7 @@
     cell.classList.add(cls);
   }
 
-  function displayRemaining(target, avgRaw){
+  function displayRemaining(target, avgRaw, isFirst){
     const opVal = parseCellNumber(document.getElementById('op-' + target.type + '-' + target.hole).textContent);
     const ctrlVal = parseCellNumber(document.getElementById('ctrl-' + target.type + '-' + target.hole).textContent);
     const cell = document.getElementById('cur-' + target.type + '-' + target.hole);
@@ -1879,6 +1893,7 @@
       cell.textContent = '';
       setValueClass(cell, 'val-empty');
       cell.classList.remove('win-cell');
+      cell.classList.remove('first-measure');
       updateAlertState(cell);
       mirrorReedRemaining(target.type, target.hole);
       checkAllGreenAndUpdateFinishStatus();
@@ -1887,6 +1902,7 @@
     const remaining = opVal + ctrlVal - avgRaw;
     cell.textContent = formatCents(remaining);
     setValueClass(cell, remaining === 0 ? 'val-0' : (remaining > 0 ? 'val-pos' : 'val-neg'));
+    cell.classList.toggle('first-measure', !!isFirst);
     const wasGreen = cell.classList.contains('win-cell');
     cell.classList.toggle('win-cell', remaining === 0 || remaining === -1);
     if(cell.classList.contains('win-cell') && !wasGreen) triggerCellFirework(cell);
@@ -1954,7 +1970,8 @@
     }
 
     const avg = robustAverage(accumulatedDeviations);
-    updateReedBase(target.type, target.hole, avg);
+    const isFirst = accumulatedDeviations.length === 1; // première mesure comptée dans ce cycle
+    updateReedBase(target.type, target.hole, avg, isFirst);
 
     const ignoredNote = ignored ? '<br><span style="color:var(--flat-sharp)">Un son a été ignoré (' + ignoreReason + ')' + ignoredCentsNote + '.</span>' : '';
 
@@ -1962,7 +1979,7 @@
       recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — ' + accumulatedDeviations.length + ' mesure(s) prise(s)'
         + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote;
     } else {
-      displayRemaining(target, avg);
+      displayRemaining(target, avg, isFirst);
       const cell = document.getElementById('cur-' + target.type + '-' + target.hole);
       if(cell.classList.contains('win-cell')){
         recordStatus.innerHTML = '<b style="color:var(--in-tune)">Gagné</b> — case ' + targetLabel(target) + ' (' + accumulatedDeviations.length + ' mesure(s) retenue(s)).'
@@ -1976,15 +1993,25 @@
 
   // change la case sélectionnée (utilisé aussi bien pendant l'enregistrement que hors
   // enregistrement) — le surlignage ne change QUE lors d'un appel à cette fonction.
+  // applique/retire le contour doré sur le corps ET la base de l'anche correspondante
+  function setReedSelected(type, hole, selected){
+    const body = document.getElementById('reed-body-' + type + '-' + hole);
+    const base = document.getElementById('reed-base-' + type + '-' + hole);
+    if(body) body.classList.toggle('reed-selected', selected);
+    if(base) base.classList.toggle('reed-selected', selected);
+  }
+
   function setSelectedCell(type, hole){
     if(selectedCell){
       const prev = document.getElementById('cur-' + selectedCell.type + '-' + selectedCell.hole);
       if(prev) prev.classList.remove('cell-selected');
+      setReedSelected(selectedCell.type, selectedCell.hole, false);
       mirrorReedRemaining(selectedCell.type, selectedCell.hole);
     }
     selectedCell = { type, hole };
     const cell = document.getElementById('cur-' + type + '-' + hole);
     cell.classList.add('cell-selected');
+    setReedSelected(type, hole, true);
     mirrorReedRemaining(type, hole);
     deleteBtn.disabled = recordingActive; // une case est sélectionnée : la suppression devient possible hors enregistrement
   }
@@ -1997,6 +2024,7 @@
     accumulatedDeviations = [];
     playInProgress = false;
     currentPlaySamples = [];
+    resetPendingForSilence = false;
     recordStatus.classList.remove('error');
     recordStatus.innerHTML = 'Case sélectionnée : <b>' + targetLabel(selectedCell) + '</b> — joue la note à enregistrer';
   }
@@ -2126,7 +2154,12 @@
   // un clic sur une case en fait la nouvelle case sélectionnée. Si un enregistrement est en cours
   // et qu'une autre case était déjà sélectionnée, ses données sont d'abord inscrites.
   function handleCellClick(type, hole){
-    if(selectedCell && selectedCell.type === type && selectedCell.hole === hole) return; // déjà sélectionnée
+    if(selectedCell && selectedCell.type === type && selectedCell.hole === hole){
+      // clic sur la case déjà sélectionnée, pendant l'enregistrement : on repart d'une moyenne
+      // vierge (écart et reste à faire), la prochaine mesure sera la première de ce nouveau cycle
+      if(recordingActive) armSelectedCellForRecording();
+      return;
+    }
 
     if(recordingActive && selectedCell){
       finalizeSelectedCellData();
@@ -2143,8 +2176,8 @@
       const cell = document.getElementById('cur-' + type + '-' + hole);
       if(!cell) continue;
       cell.addEventListener('click', () => handleCellClick(type, hole));
-      const mirror = document.getElementById('reed-remaining-' + type + '-' + hole);
-      if(mirror) mirror.addEventListener('click', () => handleCellClick(type, hole));
+      const clickzone = document.getElementById('reed-clickzone-' + type + '-' + hole);
+      if(clickzone) clickzone.addEventListener('click', () => handleCellClick(type, hole));
     }
   });
 
@@ -2153,6 +2186,7 @@
 
     if(freq !== -1){
       lastValidSampleAt = now;
+      resetPendingForSilence = false; // une note valable est de nouveau détectée
       if(!playInProgress){
         playInProgress = true;
         currentPlaySamples = [];
@@ -2165,6 +2199,15 @@
         playInProgress = false;
         isCapturingPlayAudio = false;
         finalizeCurrentPlaySamples();
+      }
+      // case déjà remplie (pas vide) + 5s de silence : la moyenne interne repart de zéro, mais
+      // l'affichage (écart, reste à faire) garde sa dernière valeur jusqu'à la prochaine mesure
+      if(recordingActive && selectedCell && !targetWasEmpty && !resetPendingForSilence
+         && (now - lastValidSampleAt) > NOT_EMPTY_RESET_SILENCE_MS){
+        accumulatedDeviations = [];
+        resetPendingForSilence = true;
+        recordStatus.classList.remove('error');
+        recordStatus.innerHTML = 'Aucune note depuis 5 s — la moyenne repart de zéro pour la case <b>' + targetLabel(selectedCell) + '</b> (les valeurs affichées restent inchangées).';
       }
     }
   }
