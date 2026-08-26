@@ -545,6 +545,63 @@
     flex-direction:column;
     align-items:center;
   }
+  .autopilot-col{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap: 10px;
+    height: 133px;
+    margin-right: 8px;
+  }
+  .autopilot-label{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    text-align: center;
+    max-width: 46px;
+    line-height: 1.2;
+  }
+  .vswitch{
+    position: relative;
+    display: inline-block;
+    width: 24px;
+    height: 46px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .vswitch input{
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+  .vswitch-track{
+    position: absolute;
+    inset: 0;
+    background: var(--bg);
+    border: 1px solid var(--panel-line);
+    border-radius: 999px;
+    transition: background 150ms ease, border-color 150ms ease;
+  }
+  .vswitch-thumb{
+    position: absolute;
+    left: 3px;
+    bottom: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: transform 150ms ease, background 150ms ease;
+  }
+  .vswitch input:checked + .vswitch-track{
+    background: rgba(201,162,39,0.22);
+    border-color: var(--gold);
+  }
+  .vswitch input:checked + .vswitch-track .vswitch-thumb{
+    transform: translateY(-22px);
+    background: var(--gold);
+  }
   .reed-type-label{
     font-family: 'JetBrains Mono', monospace;
     font-size: 13px;
@@ -778,6 +835,13 @@
       <div class="seq-panel reed-panel">
         <div class="harmo-title">Reste à faire — vue anches</div>
         <div class="reed-row" id="reedRowA">
+          <div class="autopilot-col">
+            <span class="autopilot-label">Pilote auto.</span>
+            <label class="vswitch">
+              <input type="checkbox" id="autopilotToggle" checked>
+              <span class="vswitch-track"><span class="vswitch-thumb"></span></span>
+            </label>
+          </div>
           <div class="reed-type-label-col"><div style="height:93px;"></div><div class="reed-type-label">A</div></div>
           <div class="reed-unit"><div class="reed-plate"><div class="reed-body reed-body-first" style="height:66px;" id="reed-body-A-1"></div><div class="reed-correspond" id="reed-correspond-A-1" style="bottom:27px;"></div><div class="reed-base" id="reed-base-A-1"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-1"></div><div class="reed-clickzone" id="reed-clickzone-A-1" style="top:0px; height:133px;"></div><div class="reed-hole-number">1</div></div>
           <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:59px;" id="reed-body-A-2"></div><div class="reed-correspond" id="reed-correspond-A-2" style="bottom:34px;"></div><div class="reed-base" id="reed-base-A-2"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-2"></div><div class="reed-clickzone" id="reed-clickzone-A-2" style="top:0px; height:133px;"></div><div class="reed-hole-number">2</div></div>
@@ -1309,7 +1373,64 @@
 
   const saveBtn = document.getElementById('saveBtn');
   const finishBtn = document.getElementById('finishBtn');
+
+  // interrupteur "Pilote auto."
+  const autopilotToggle = document.getElementById('autopilotToggle');
+  let autopilotEnabled = true;
+  autopilotToggle.addEventListener('change', () => {
+    autopilotEnabled = autopilotToggle.checked;
+  });
   let tuningFinished = false;
+
+  // ==== Pilote automatique : constantes, voix, et suivi ====
+
+  // seuil réutilisé par plusieurs règles du pilote auto. (écart-type des mesures accumulées
+  // pour une case doit rester strictement inférieur à cette valeur pour valider automatiquement)
+  const seuilValidation = 0.75;
+
+  // écart-type "classique" d'une série de valeurs (population complète, division par N) ;
+  // renvoie Infinity si on a moins de 2 valeurs (pas assez de données pour juger de la stabilité)
+  function stddevOf(values){
+    if(values.length < 2) return Infinity;
+    const mean = values.reduce((a,b) => a+b, 0) / values.length;
+    const variance = values.reduce((a,b) => a + (b-mean)*(b-mean), 0) / values.length;
+    return Math.sqrt(variance);
+  }
+
+  // file d'attente des messages vocaux : ils s'enchaînent avec une courte pause entre chacun,
+  // plutôt que de se couper ou de se chevaucher
+  const voiceQueue = [];
+  let voicePlaying = false;
+
+  function queueVoiceMessage(text){
+    if(!autopilotEnabled) return; // aucun message vocal si le pilote auto. est désactivé
+    voiceQueue.push(text);
+    processVoiceQueue();
+  }
+
+  function processVoiceQueue(){
+    if(voicePlaying || voiceQueue.length === 0) return;
+    if(typeof window.speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined'){
+      voiceQueue.length = 0; // synthèse vocale indisponible sur ce navigateur : on abandonne la file
+      return;
+    }
+    voicePlaying = true;
+    const text = voiceQueue.shift();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'en-US'; // voix anglaise américaine — pas de vrai contrôle d'accent texan possible
+    utter.pitch = 1.3;    // dynamique, enjouée
+    utter.rate = 1.1;
+    const advance = () => { voicePlaying = false; setTimeout(processVoiceQueue, 350); }; // courte pause
+    utter.onend = advance;
+    utter.onerror = advance;
+    window.speechSynthesis.speak(utter);
+  }
+
+  // nombre de fois consécutives où "Reste à faire" a été validé à -1 ou 0, par case (clé "type-hole")
+  const consecutiveGreenCount = {};
+  // la dernière transition "case devenue verte" traitée était-elle la 2e fois d'affilée ? (sert à
+  // savoir si le message "toutes vertes" doit inclure la condition de la règle 4)
+  let lastGreenTransitionWasTwiceInRow = false;
 
   finishBtn.addEventListener('click', () => {
     tuningFinished = !tuningFinished;
@@ -1397,6 +1518,10 @@
       tuningFinished = true;
       finishBtn.classList.add('active');
       triggerBigFirework();
+      // pilote auto. — règle 5 : toutes vertes ET la dernière case validée 2 fois d'affilée
+      if(autopilotEnabled && lastGreenTransitionWasTwiceInRow){
+        queueVoiceMessage("Wow, you're a master, Claudia!");
+      }
     } else if(!allGreen && tuningFinished){
       tuningFinished = false;
       finishBtn.classList.remove('active');
@@ -1904,6 +2029,7 @@
       setValueClass(cell, 'val-empty');
       cell.classList.remove('win-cell');
       cell.classList.remove('first-measure');
+      consecutiveGreenCount[target.type + '-' + target.hole] = 0;
       updateAlertState(cell);
       mirrorReedRemaining(target.type, target.hole);
       checkAllGreenAndUpdateFinishStatus();
@@ -1914,8 +2040,18 @@
     setValueClass(cell, remaining === 0 ? 'val-0' : (remaining > 0 ? 'val-pos' : 'val-neg'));
     cell.classList.toggle('first-measure', !!isFirst);
     const wasGreen = cell.classList.contains('win-cell');
-    cell.classList.toggle('win-cell', remaining === 0 || remaining === -1);
-    if(cell.classList.contains('win-cell') && !wasGreen) triggerCellFirework(cell);
+    const isGreenNow = (remaining === 0 || remaining === -1);
+    cell.classList.toggle('win-cell', isGreenNow);
+    if(isGreenNow && !wasGreen) triggerCellFirework(cell);
+
+    // pilote auto. — règle 4 : "Reste à faire" validé à -1 ou 0 deux fois d'affilée -> "Nice shot!"
+    const greenKey = target.type + '-' + target.hole;
+    consecutiveGreenCount[greenKey] = isGreenNow ? ((consecutiveGreenCount[greenKey] || 0) + 1) : 0;
+    lastGreenTransitionWasTwiceInRow = (consecutiveGreenCount[greenKey] === 2);
+    if(autopilotEnabled && lastGreenTransitionWasTwiceInRow){
+      queueVoiceMessage('Nice shot!');
+    }
+
     updateAlertState(cell);
     mirrorReedRemaining(target.type, target.hole);
     checkAllGreenAndUpdateFinishStatus();
@@ -1951,6 +2087,10 @@
     const refA4 = parseFloat(refSelect.value);
     const rawCents = Math.round((12*Math.log2(avgFreq/refA4) - (expectedMidi-69)) * 100);
     const cents = octaveReducedCents(rawCents); // une octave ou plus d'écart = considérée comme la bonne note
+
+    // capturé AVANT toute mise à jour, pour la règle de validation rapide (première mesure) ci-dessous
+    const reedBaseElForFastRule = document.getElementById('reed-base-' + target.type + '-' + target.hole);
+    const previousEcart = reedBaseElForFastRule ? parseCellNumber(reedBaseElForFastRule.textContent) : null;
 
     // deux filtres de rejet, indépendants l'un de l'autre :
     // 1) toujours actif : le son ne doit pas s'écarter de plus de 40 cents de la note attendue
@@ -1992,15 +2132,54 @@
     if(targetWasEmpty){
       recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — ' + accumulatedDeviations.length + ' mesure(s) prise(s)'
         + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote;
+
+      // pilote auto. — règle 2 : case vide, ≥3 mesures et écart-type sous le seuil -> validation
+      // automatique. Le message "ok buddy!" est mis en file AVANT de finaliser, pour qu'il se joue
+      // avant tout message déclenché en cascade par la finalisation (règle 6 : du moins au plus restrictif)
+      if(autopilotEnabled && !ignored && accumulatedDeviations.length >= 3 && stddevOf(accumulatedDeviations) < seuilValidation){
+        queueVoiceMessage('ok buddy!');
+        finalizeSelectedCellData();
+      }
     } else {
+      // pilote auto. — règle 3 : condition évaluée AVANT l'affichage, pour que "OK" soit mis en
+      // file avant tout message que displayRemaining pourrait déclencher en cascade (règle 6 :
+      // du moins au plus restrictif)
+      const stableEnough = accumulatedDeviations.length >= 2 && stddevOf(accumulatedDeviations) < seuilValidation;
+
+      // règle supplémentaire : validation dès la 1ère mesure acceptée si elle est à moins de 5
+      // cents de l'écart précédemment affiché ET que le reste à faire s'en trouve amélioré
+      // (plus proche de 0) par rapport à ce que donnait l'ancien écart
+      let fastValidate = false;
+      if(isFirst && !stableEnough && previousEcart !== null){
+        const opValForFast = parseCellNumber(document.getElementById('op-' + target.type + '-' + target.hole).textContent);
+        const ctrlValForFast = parseCellNumber(document.getElementById('ctrl-' + target.type + '-' + target.hole).textContent);
+        if(opValForFast !== null && ctrlValForFast !== null){
+          const closeEnough = Math.abs(previousEcart - avg) < 5;
+          const prevRemaining = opValForFast + ctrlValForFast - previousEcart;
+          const newRemaining = opValForFast + ctrlValForFast - avg;
+          const improved = Math.abs(newRemaining) < Math.abs(prevRemaining);
+          fastValidate = closeEnough && improved;
+        }
+      }
+
+      const willAutoValidate = autopilotEnabled && !ignored && (stableEnough || fastValidate);
+      if(willAutoValidate) queueVoiceMessage('OK');
+
       displayRemaining(target, avg, isFirst);
       const cell = document.getElementById('cur-' + target.type + '-' + target.hole);
-      if(cell.classList.contains('win-cell')){
+      const isGreenNow = cell.classList.contains('win-cell');
+      if(isGreenNow){
         recordStatus.innerHTML = '<b style="color:var(--in-tune)">Gagné</b> — case ' + targetLabel(target) + ' (' + accumulatedDeviations.length + ' mesure(s) retenue(s)).'
           + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote;
       } else {
         recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — moyenne mise à jour en direct (' + accumulatedDeviations.length + ' mesure(s))'
           + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote;
+      }
+
+      if(willAutoValidate){
+        finalizeSelectedCellData();
+        // règle 7 : si la validation a résulté en case verte, on avance vers la prochaine non verte
+        if(isGreenNow) advanceToNextNonGreenCell(target.type, target.hole);
       }
     }
   }
@@ -2168,6 +2347,19 @@
 
   // un clic sur une case en fait la nouvelle case sélectionnée. Si un enregistrement est en cours
   // et qu'une autre case était déjà sélectionnée, ses données sont d'abord inscrites.
+  // pilote auto. — règle 7 : après validation automatique au vert d'une case non vide, on avance
+  // vers la prochaine case non verte de la même rangée (ordre croissant, cases vertes sautées) ;
+  // si on atteint la case 10 sans en trouver, on ne fait rien (la case d'origine reste sélectionnée)
+  function advanceToNextNonGreenCell(type, hole){
+    for(let h = hole + 1; h <= 10; h++){
+      const cell = document.getElementById('cur-' + type + '-' + h);
+      if(cell && !cell.classList.contains('win-cell')){
+        handleCellClick(type, h); // désélectionne proprement la case d'origine, sélectionne la nouvelle
+        return;
+      }
+    }
+  }
+
   function handleCellClick(type, hole){
     if(selectedCell && selectedCell.type === type && selectedCell.hole === hole){
       // clic sur la case déjà sélectionnée, pendant l'enregistrement : on repart d'une moyenne
