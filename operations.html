@@ -549,10 +549,9 @@
     display:flex;
     flex-direction:column;
     align-items:center;
-    justify-content:center;
     gap: 10px;
-    height: 133px;
-    margin-right: 8px;
+    position: relative;
+    margin-bottom: 10px;
   }
   .autopilot-label{
     font-family: 'JetBrains Mono', monospace;
@@ -834,14 +833,14 @@
 
       <div class="seq-panel reed-panel">
         <div class="harmo-title">Reste à faire — vue anches</div>
+        <div class="autopilot-col" id="autopilotCol">
+          <span class="autopilot-label">Pilote auto.</span>
+          <label class="vswitch">
+            <input type="checkbox" id="autopilotToggle" checked>
+            <span class="vswitch-track"><span class="vswitch-thumb"></span></span>
+          </label>
+        </div>
         <div class="reed-row" id="reedRowA">
-          <div class="autopilot-col">
-            <span class="autopilot-label">Pilote auto.</span>
-            <label class="vswitch">
-              <input type="checkbox" id="autopilotToggle" checked>
-              <span class="vswitch-track"><span class="vswitch-thumb"></span></span>
-            </label>
-          </div>
           <div class="reed-type-label-col"><div style="height:93px;"></div><div class="reed-type-label">A</div></div>
           <div class="reed-unit"><div class="reed-plate"><div class="reed-body reed-body-first" style="height:66px;" id="reed-body-A-1"></div><div class="reed-correspond" id="reed-correspond-A-1" style="bottom:27px;"></div><div class="reed-base" id="reed-base-A-1"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-1"></div><div class="reed-clickzone" id="reed-clickzone-A-1" style="top:0px; height:133px;"></div><div class="reed-hole-number">1</div></div>
           <div class="reed-unit"><div class="reed-plate"><div class="reed-body" style="height:59px;" id="reed-body-A-2"></div><div class="reed-correspond" id="reed-correspond-A-2" style="bottom:34px;"></div><div class="reed-base" id="reed-base-A-2"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-2"></div><div class="reed-clickzone" id="reed-clickzone-A-2" style="top:0px; height:133px;"></div><div class="reed-hole-number">2</div></div>
@@ -1381,6 +1380,23 @@
     autopilotEnabled = autopilotToggle.checked;
   });
   let tuningFinished = false;
+
+  // centre précisément le bouton "Pilote auto." sur le centre horizontal du titre du cartouche
+  // (le titre étant aligné à gauche, un simple centrage CSS ne suffit pas : on mesure les
+  // positions réelles à l'écran)
+  function alignAutopilotToTitle(){
+    const title = document.querySelector('.reed-panel .harmo-title');
+    const col = document.getElementById('autopilotCol');
+    if(!title || !col) return;
+    col.style.left = '0px';
+    const titleRect = title.getBoundingClientRect();
+    const colRect = col.getBoundingClientRect();
+    const titleCenter = titleRect.left + titleRect.width / 2;
+    const colCenter = colRect.left + colRect.width / 2;
+    col.style.left = (titleCenter - colCenter) + 'px';
+  }
+  window.addEventListener('resize', alignAutopilotToTitle);
+  setTimeout(alignAutopilotToTitle, 0);
 
   // ==== Pilote automatique : constantes, voix, et suivi ====
 
