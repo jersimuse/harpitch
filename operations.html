@@ -814,7 +814,7 @@
         </div>
         <div class="model-row">
           <label><input type="radio" name="harmoModel" value="origin" id="modelOrigin"> Origin</label>
-          <label><input type="radio" name="harmoModel" value="signature" id="modelSignature" checked> Signature</label>
+          <label><input type="radio" name="harmoModel" value="signature" id="modelSignature"> Signature</label>
         </div>
         <div class="key-row">
           <span>Tonalité de l'harmonica&nbsp;:</span>
@@ -1776,6 +1776,11 @@
   // construit le contenu JSON à jour et le nom de fichier correspondant — réutilisé par
   // "Sauvegarder" et "Envoyer eMail"
   function buildSaveData(){
+    const modelChecked = document.querySelector('input[name="harmoModel"]:checked');
+    if(!modelChecked){
+      alert('Choisis d\u2019abord le modèle de l\u2019harmonica (Origin ou Signature) avant de sauvegarder.');
+      return null;
+    }
     if(!currentData && !harmoNameInput.value.trim()){
       const now = new Date();
       const day = pad2(now.getDate());
@@ -1790,7 +1795,7 @@
       harmonica: harmoNameInput.value,
       tonalite: keySelect.value,
       accordage: tuningSelect.value,
-      modele: getHarmoModel(),
+      modele: modelChecked.value,
       accordageTermine: tuningFinished,
       harmonicaBoxInitial: { A: collectRow('ctrl', 'A'), S: collectRow('ctrl', 'S') },
       harmonicaFinal: {
