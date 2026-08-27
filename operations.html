@@ -1780,8 +1780,10 @@
       const now = new Date();
       const day = pad2(now.getDate());
       const month = pad2(now.getMonth() + 1);
+      const yearShort = String(now.getFullYear()).slice(-2);
       const rand = Math.floor(Math.random() * 10000); // 0 à 9999
-      harmoNameInput.value = keyLetterForName(keySelect.value) + rand + '-' + day + '/' + month;
+      const refLastDigit = refSelect.value.slice(-1);
+      harmoNameInput.value = keyLetterForName(keySelect.value) + rand + '-' + refLastDigit + '-' + day + month + yearShort;
     }
     const base = currentData || {};
     const data = Object.assign({}, base, {
