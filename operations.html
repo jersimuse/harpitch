@@ -205,6 +205,14 @@
     font-size: 11px;
     color: var(--text-dim);
   }
+  .tuning-change-note{
+    text-align: center;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--gold);
+    margin-top: 8px;
+    line-height: 1.5;
+  }
   .model-row{
     display:flex;
     align-items:center;
@@ -477,6 +485,16 @@
     background: rgba(255,255,255,0.02);
   }
   table.harmo thead th:first-child{ background: transparent; border: none; }
+  .op-lock-btn{
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    padding: 2px;
+    opacity: 0.85;
+  }
+  .op-lock-btn:hover{ opacity: 1; }
   table.harmo tbody th{
     color: var(--gold);
     font-weight: 700;
@@ -545,13 +563,23 @@
     flex-direction:column;
     align-items:center;
   }
+  .reed-panel-body{
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding-top: 22px; /* décale ensemble le bouton et le haut des anches, tout en les gardant alignés */
+  }
   .autopilot-col{
     display:flex;
     flex-direction:column;
     align-items:center;
     gap: 10px;
-    position: relative;
-    margin-bottom: 10px;
+    width: fit-content;
+    flex-shrink: 0;
+  }
+  .reed-rows-wrapper{
+    flex: 1;
+    min-width: 0;
   }
   .autopilot-label{
     font-family: 'JetBrains Mono', monospace;
@@ -815,6 +843,7 @@
             <option value="minor_natural">Mineur Naturel (vHohner)</option>
           </select>
         </div>
+        <div class="tuning-change-note" id="tuningChangeNote"></div>
       </div>
 
       <div class="load-panel">
@@ -833,6 +862,7 @@
 
       <div class="seq-panel reed-panel">
         <div class="harmo-title">Reste à faire — vue anches</div>
+        <div class="reed-panel-body">
         <div class="autopilot-col" id="autopilotCol">
           <span class="autopilot-label">Pilote auto.</span>
           <label class="vswitch">
@@ -840,6 +870,7 @@
             <span class="vswitch-track"><span class="vswitch-thumb"></span></span>
           </label>
         </div>
+        <div class="reed-rows-wrapper">
         <div class="reed-row" id="reedRowA">
           <div class="reed-type-label-col"><div style="height:93px;"></div><div class="reed-type-label">A</div></div>
           <div class="reed-unit"><div class="reed-plate"><div class="reed-body reed-body-first" style="height:66px;" id="reed-body-A-1"></div><div class="reed-correspond" id="reed-correspond-A-1" style="bottom:27px;"></div><div class="reed-base" id="reed-base-A-1"></div></div><div class="reed-remaining val-empty" id="reed-remaining-A-1"></div><div class="reed-clickzone" id="reed-clickzone-A-1" style="top:0px; height:133px;"></div><div class="reed-hole-number">1</div></div>
@@ -869,15 +900,14 @@
           <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body" style="height:59px;" id="reed-body-S-2"></div><div class="reed-correspond" id="reed-correspond-S-2" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-2"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-2"></div><div class="reed-clickzone" id="reed-clickzone-S-2" style="top:0px; height:133px;"></div><div class="reed-hole-number">2</div></div>
           <div class="reed-unit"><div class="reed-plate-bottom"><div class="reed-body reed-body-first" style="height:66px;" id="reed-body-S-1"></div><div class="reed-correspond" id="reed-correspond-S-1" style="bottom:28px;"></div><div class="reed-base" id="reed-base-S-1"></div></div><div class="reed-remaining val-empty" id="reed-remaining-S-1"></div><div class="reed-clickzone" id="reed-clickzone-S-1" style="top:0px; height:133px;"></div><div class="reed-hole-number">1</div></div>
         </div>
+        </div>
+        </div>
       </div>
 
       <div class="record-row-wrap">
         <div class="record-row">
           <button class="record-btn" id="recordBtn" style="flex:1; width:auto;"><span class="dot"></span><span id="recordBtnText">Enregistrement</span></button>
-          <button class="pause-btn" id="pauseBtn" disabled title="Mettre en pause / reprendre">
-            <span class="bar"></span><span class="bar"></span>
-          </button>
-          <button class="play-btn-compact" id="playBtn" disabled title="Écouter le dernier son enregistré (nettoyé)">▶</button>
+          <button class="play-btn-compact" id="playBtn" disabled title="Écouter la dernière note validée">▶</button>
           <button class="delete-btn-compact" id="deleteBtn" disabled title="Effacer la case sélectionnée">🗑️</button>
         </div>
         <div class="status" id="recordStatus">&nbsp;</div>
@@ -938,7 +968,7 @@
         <div class="harmo-title">Opérations à réaliser</div>
         <table class="harmo">
           <thead>
-            <tr><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th></tr>
+            <tr><th><button type="button" class="op-lock-btn" id="opLockBtn" title="Déverrouiller pour modifier Opérations à réaliser">🔒</button></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th></tr>
           </thead>
           <tbody>
             <tr><th>A</th><td id="op-A-1"></td><td id="op-A-2"></td><td id="op-A-3"></td><td id="op-A-4"></td><td id="op-A-5"></td><td id="op-A-6"></td><td id="op-A-7"></td><td id="op-A-8"></td><td id="op-A-9"></td><td id="op-A-10"></td></tr>
@@ -1019,6 +1049,64 @@
     return k === 'F#' ? 'Fd' : k;
   }
   const tuningSelect = document.getElementById('harmoTuning');
+  const tuningChangeNote = document.getElementById('tuningChangeNote');
+
+  // valeurs de "Opérations à réaliser" écrasées à 0 par un accordage non-Richter, pour les
+  // restaurer si l'utilisateur revient à Richter plus tard — clé "type+hole" (ex: "A5")
+  const opOverridesByTuning = {};
+
+  // texte de rappel des notes changées par l'accordage en cours, par rapport à Richter
+  function tuningChangeSummaryText(tuningKey){
+    const tuning = TUNINGS[tuningKey] || TUNINGS.richter;
+    const keys = Object.keys(tuning.adjust);
+    if(keys.length === 0) return '';
+    const parts = keys.map(k => {
+      const type = k[0], hole = k.slice(1);
+      const label = (type === 'A' ? 'Aspiré' : 'Soufflé') + ' ' + hole;
+      const delta = tuning.adjust[k];
+      const sign = delta > 0 ? '+' : '';
+      return label + ' (' + sign + delta + ' demi-ton' + (Math.abs(delta) > 1 ? 's' : '') + ')';
+    });
+    return 'Par rapport à Richter, cet accordage modifie : ' + parts.join(', ') + '.';
+  }
+
+  // force à 0 les cases "Opérations à réaliser" concernées par l'accordage en cours (en
+  // sauvegardant leur valeur précédente), et restaure celles qui ne sont plus concernées
+  function applyTuningOverridesToOperations(){
+    const tuning = TUNINGS[tuningSelect.value] || TUNINGS.richter;
+    const currentKeys = new Set(Object.keys(tuning.adjust));
+
+    // restaure les cases qui étaient forcées mais que le nouvel accordage ne modifie plus
+    Object.keys(opOverridesByTuning).forEach(key => {
+      if(!currentKeys.has(key)){
+        const type = key[0], hole = key.slice(1);
+        const cell = document.getElementById('op-' + type + '-' + hole);
+        if(cell){
+          const prevText = opOverridesByTuning[key];
+          cell.textContent = (prevText === '–') ? '' : prevText;
+          setValueClass(cell, valClass(prevText));
+        }
+        delete opOverridesByTuning[key];
+      }
+    });
+
+    // force à 0 les cases concernées par l'accordage en cours (une seule fois : on ne
+    // resauvegarde pas une valeur déjà sauvegardée, pour ne pas écraser l'originale avec un "0")
+    currentKeys.forEach(key => {
+      const type = key[0], hole = key.slice(1);
+      const cell = document.getElementById('op-' + type + '-' + hole);
+      if(!cell) return;
+      if(!(key in opOverridesByTuning)){
+        opOverridesByTuning[key] = cellText('op-' + type + '-' + hole);
+      }
+      cell.textContent = '0';
+      setValueClass(cell, 'val-0');
+    });
+
+    tuningChangeNote.textContent = tuningChangeSummaryText(tuningSelect.value);
+  }
+
+  tuningSelect.addEventListener('change', applyTuningOverridesToOperations);
 
   // six tableaux de correspondances : un par modèle d'harmonica (Signature / Origin) croisé avec
   // le groupe de tonalités. Pour l'instant toutes les cases valent "?" ; à affiner plus tard.
@@ -1098,7 +1186,16 @@
       setValueClass(cell, valClass(val));
       if(computeWin){
         const num = parseCellNumber(cell.textContent);
-        cell.classList.toggle('win-cell', num !== null && (num === 0 || num === -1));
+        // une valeur vide (case jamais mesurée dans ce fichier) ne doit pas écraser le
+        // pré-marquage déjà appliqué par markPreGoodCells() à partir d'Opérations à réaliser
+        if(num !== null){
+          const isGreen = (num === 0 || num === -1);
+          cell.classList.toggle('win-cell', isGreen);
+          // une case déjà verte au chargement du fichier est considérée comme validée (2 fois
+          // d'affilée), pour que la règle "changement de plaque" puisse s'appliquer normalement
+          // en reprenant un harmonica déjà partiellement accordé lors d'une session précédente
+          if(typeof autoValidatedCells !== 'undefined') autoValidatedCells[type + '-' + h] = isGreen;
+        }
       }
       if(prefix === 'cur'){
         updateAlertState(cell);
@@ -1192,6 +1289,8 @@
         const curCell = document.getElementById('cur-' + type + '-' + hole);
         if(curCell && opVal !== null && (opVal === 0 || opVal === -1)){
           curCell.classList.add('win-cell');
+          // considérée comme déjà validée (2 fois d'affilée) dès le chargement du fichier
+          if(typeof autoValidatedCells !== 'undefined') autoValidatedCells[type + '-' + hole] = true;
         }
         mirrorReedRemaining(type, hole);
       }
@@ -1381,36 +1480,27 @@
   });
   let tuningFinished = false;
 
-  // centre précisément le bouton "Pilote auto." sur le centre horizontal du titre du cartouche
-  // (le titre étant aligné à gauche, un simple centrage CSS ne suffit pas : on mesure les
-  // positions réelles à l'écran)
-  function alignAutopilotToTitle(){
-    const title = document.querySelector('.reed-panel .harmo-title');
-    const col = document.getElementById('autopilotCol');
-    if(!title || !col) return;
-    col.style.left = '0px';
-    const titleRect = title.getBoundingClientRect();
-    const colRect = col.getBoundingClientRect();
-    const titleCenter = titleRect.left + titleRect.width / 2;
-    const colCenter = colRect.left + colRect.width / 2;
-    col.style.left = (titleCenter - colCenter) + 'px';
-  }
-  window.addEventListener('resize', alignAutopilotToTitle);
-  setTimeout(alignAutopilotToTitle, 0);
-
   // ==== Pilote automatique : constantes, voix, et suivi ====
 
-  // seuil réutilisé par plusieurs règles du pilote auto. (écart-type des mesures accumulées
-  // pour une case doit rester strictement inférieur à cette valeur pour valider automatiquement)
-  const seuilValidation = 0.75;
-
-  // écart-type "classique" d'une série de valeurs (population complète, division par N) ;
-  // renvoie Infinity si on a moins de 2 valeurs (pas assez de données pour juger de la stabilité)
-  function stddevOf(values){
-    if(values.length < 2) return Infinity;
+  // calcule le sous-ensemble filtré (mêmes filtrage que robustAverage : à moins d'un écart-type
+  // de la moyenne), son étendue (max - min), le seuil applicable selon son nombre de mesures, et
+  // si cette étendue passe sous ce seuil — réutilisé à la fois pour valider et pour l'afficher
+  function filteredRangeInfo(values){
+    if(values.length === 0) return { filtered: [], range: 0, threshold: 1, stable: false };
     const mean = values.reduce((a,b) => a+b, 0) / values.length;
-    const variance = values.reduce((a,b) => a + (b-mean)*(b-mean), 0) / values.length;
-    return Math.sqrt(variance);
+    let filtered = values;
+    if(values.length >= 2){
+      const variance = values.reduce((a,b) => a + (b-mean)*(b-mean), 0) / values.length;
+      const std = Math.sqrt(variance);
+      const f = values.filter(v => v >= mean-std && v <= mean+std);
+      filtered = f.length > 0 ? f : values;
+    }
+    const range = Math.max(...filtered) - Math.min(...filtered);
+    const threshold = filtered.length >= 4 ? 2 : 1;
+    return { filtered, range, threshold, stable: range <= threshold };
+  }
+  function isStableByRange(values){
+    return filteredRangeInfo(values).stable;
   }
 
   // file d'attente des messages vocaux : ils s'enchaînent avec une courte pause entre chacun,
@@ -1442,11 +1532,107 @@
     window.speechSynthesis.speak(utter);
   }
 
+  // remplace le message vocal "OK" (validation d'une case non vide) par deux bips synthétisés
+  // directement (Web Audio), quasi instantanés — pas de latence de démarrage d'un moteur de
+  // synthèse vocale ni de risque de voix réseau. Joué immédiatement, hors de la file d'attente
+  // vocale (pas besoin d'attendre son tour, ni la pause de 350ms entre messages).
+  // deux bips courts à la fréquence donnée, quasi instantanés (Web Audio, pas de latence de
+  // synthèse vocale) — utilisés pour précéder certains messages du pilote auto.
+  function playTwoBeeps(freq){
+    if(!playbackAudioCtx) playbackAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = playbackAudioCtx;
+    const now = ctx.currentTime;
+    function beep(startTime, duration){
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.001, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.5, startTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(startTime);
+      osc.stop(startTime + duration + 0.02);
+    }
+    beep(now, 0.09);
+    beep(now + 0.11, 0.09);
+  }
+
+  // joue une courte mélodie (liste de { midi, dur }, dur en secondes), utilisée pour précéder le
+  // message de changement de plaque et le message de réussite finale
+  function playMelody(notes){
+    if(!playbackAudioCtx) playbackAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = playbackAudioCtx;
+    let t = ctx.currentTime;
+    notes.forEach(n => {
+      const freq = 440 * Math.pow(2, (n.midi - 69) / 12);
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.exponentialRampToValueAtTime(0.4, t + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + n.dur * 0.95);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + n.dur);
+      t += n.dur;
+    });
+  }
+
+  const CROCHE = 0.16;
+  const NOIRE = 0.32;
+  const BLANCHE = 0.64;
+
+  // mélodie précédant "OK, changement de plaque !" : D5 B4 (croches), G5 (noire)
+  function playPlaqueChangeMelody(){
+    playMelody([
+      { midi: 74, dur: CROCHE }, // D5
+      { midi: 71, dur: CROCHE }, // B4
+      { midi: 79, dur: NOIRE },  // G5
+    ]);
+  }
+
+  // mélodie précédant le message de réussite finale : D6 B5 Bb5 G5 Ab5 F5 (croches), G5 (noire),
+  // G6 (blanche) — une octave au-dessus de la version initiale
+  function playFinalMelody(){
+    playMelody([
+      { midi: 86, dur: CROCHE }, // D6
+      { midi: 83, dur: CROCHE }, // B5
+      { midi: 82, dur: CROCHE }, // Bb5
+      { midi: 79, dur: CROCHE }, // G5
+      { midi: 80, dur: CROCHE }, // Ab5
+      { midi: 77, dur: CROCHE }, // F5
+      { midi: 79, dur: NOIRE },  // G5
+      { midi: 91, dur: BLANCHE }, // G6
+    ]);
+  }
+
   // nombre de fois consécutives où "Reste à faire" a été validé à -1 ou 0, par case (clé "type-hole")
   const consecutiveGreenCount = {};
+  // une case a-t-elle déjà atteint 2 validations vertes d'affilée, et est-elle toujours verte
+  // actuellement ? (perd ce statut dès qu'elle redevient non verte) — utilisé par la règle du
+  // "changement de plaque" pour distinguer une vraie validation automatique d'un simple vert
+  // affiché pour une autre raison (pré-marquage au chargement, saisie manuelle, etc.)
+  const autoValidatedCells = {};
   // la dernière transition "case devenue verte" traitée était-elle la 2e fois d'affilée ? (sert à
   // savoir si le message "toutes vertes" doit inclure la condition de la règle 4)
   let lastGreenTransitionWasTwiceInRow = false;
+  // un seul message vocal par mesure validée : ce drapeau indique qu'un message plus spécifique
+  // que "OK"/"ok buddy!" a déjà été mis en file pour la mesure en cours (règles 5 et 6)
+  let greenMessageQueuedThisCall = false;
+  // règle 7 : "changement de plaque" déclenché pour la mesure en cours — prime sur tous les
+  // autres messages, et provoque la sélection automatique de 1 soufflé
+  let plaqueChangeTriggered = false;
+  // le message final ("Wow...") a-t-il déjà été annoncé pour la série "tout vert" en cours ?
+  // distinct de tuningFinished, pour pouvoir rattraper l'annonce si l'état "tout vert" a été
+  // atteint avant que la condition des 2 fois d'affilée ne soit remplie
+  let finalMessageAnnounced = false;
+  // le message final (et la mélodie) viennent d'être déclenchés pour la mesure en cours : sert
+  // à arrêter l'enregistrement juste après, comme pour le changement de plaque
+  let finalCelebrationTriggered = false;
 
   finishBtn.addEventListener('click', () => {
     tuningFinished = !tuningFinished;
@@ -1522,7 +1708,7 @@
     });
   }
 
-  function checkAllGreenAndUpdateFinishStatus(){
+  function checkAllGreenAndUpdateFinishStatus(target){
     let allGreen = true;
     ['A','S'].forEach(type => {
       for(let h=1; h<=10; h++){
@@ -1530,17 +1716,58 @@
         if(!cell || !cell.classList.contains('win-cell')) allGreen = false;
       }
     });
-    if(allGreen && !tuningFinished){
-      tuningFinished = true;
-      finishBtn.classList.add('active');
-      triggerBigFirework();
-      // pilote auto. — règle 5 : toutes vertes ET la dernière case validée 2 fois d'affilée
-      if(autopilotEnabled && lastGreenTransitionWasTwiceInRow){
-        queueVoiceMessage("Wow, you're a master, Claudia!");
+    // les messages du pilote auto. ne se jouent que pendant un enregistrement en direct (jamais
+    // au chargement d'un fichier, où cette fonction est aussi appelée pour le pré-marquage)
+    const voiceContext = autopilotEnabled && recordingActive;
+
+    // règle "changement de plaque" évaluée EN PREMIER : elle prime sur "OK, Next !" et sur le
+    // message de réussite finale — si elle s'applique, ceux-ci ne doivent PAS se jouer en plus.
+    // Condition renforcée : chaque case de la rangée aspirée doit avoir été réellement validée
+    // verte 2 fois d'affilée (pas seulement afficher du vert pour une autre raison : pré-marquage
+    // au chargement, saisie manuelle, etc.)
+    let plaqueChangeApplies = false;
+    if(voiceContext && target && target.type === 'A' && target.hole === 10
+       && document.getElementById('cur-A-10').classList.contains('win-cell')){
+      let allARowValidated = true;
+      for(let h=1; h<=10; h++){
+        const cellOk = document.getElementById('cur-A-' + h).classList.contains('win-cell');
+        const validatedOk = !!autoValidatedCells['A-' + h];
+        if(!cellOk || !validatedOk){ allARowValidated = false; break; }
       }
-    } else if(!allGreen && tuningFinished){
+      plaqueChangeApplies = allARowValidated;
+    }
+    if(plaqueChangeApplies) plaqueChangeTriggered = true;
+
+    if(allGreen){
+      if(!tuningFinished){
+        tuningFinished = true;
+        finishBtn.classList.add('active');
+      }
+      // le feu d'artifice ET le message final ne se déclenchent que si la dernière case a été
+      // validée au vert 2 fois d'affilée — le feu d'artifice quel que soit l'état du pilote
+      // auto., le message vocal en plus seulement s'il est actif. On utilise finalMessageAnnounced
+      // (et non tuningFinished) : si l'état "tout vert" est atteint AVANT que la dernière case
+      // n'ait rempli sa condition de 2 fois d'affilée, la célébration reste due et peut encore
+      // se déclencher dès que cette condition l'est.
+      if(!plaqueChangeApplies && !finalMessageAnnounced && lastGreenTransitionWasTwiceInRow){
+        triggerBigFirework();
+        finalMessageAnnounced = true;
+        if(voiceContext){
+          finalCelebrationTriggered = true;
+          playFinalMelody();
+          queueVoiceMessage("Woaouh Claudia, you're a real maaaaaster!");
+          greenMessageQueuedThisCall = true;
+        }
+      }
+    } else if(tuningFinished){
       tuningFinished = false;
+      finalMessageAnnounced = false;
       finishBtn.classList.remove('active');
+    } else if(voiceContext && !plaqueChangeApplies && lastGreenTransitionWasTwiceInRow){
+      // règle 4 : pas de transition vers "tout vert" à cet instant -> "OK, Next !" s'applique
+      playTwoBeeps(1600);
+      queueVoiceMessage('OK, Next !');
+      greenMessageQueuedThisCall = true;
     }
   }
 
@@ -1978,6 +2205,72 @@
     return parseInt(t, 10);
   }
 
+  // ==== Cadenas sur "Opérations à réaliser" : verrouillé par défaut, modifiable une fois déverrouillé ====
+  const opLockBtn = document.getElementById('opLockBtn');
+  let opTableUnlocked = false;
+  const opCellIds = [];
+  ['A','S'].forEach(type => { for(let h=1; h<=10; h++) opCellIds.push({ type, hole: h, id: 'op-' + type + '-' + h }); });
+
+  function setOpTableEditable(editable){
+    opTableUnlocked = editable;
+    opLockBtn.textContent = editable ? '🔓' : '🔒';
+    opLockBtn.title = editable ? 'Verrouiller Opérations à réaliser' : 'Déverrouiller pour modifier Opérations à réaliser';
+    opCellIds.forEach(({ id }) => {
+      const cell = document.getElementById(id);
+      if(cell) cell.setAttribute('contenteditable', editable ? 'true' : 'false');
+    });
+  }
+  setOpTableEditable(false);
+
+  opLockBtn.addEventListener('click', () => setOpTableEditable(!opTableUnlocked));
+
+  // mémorise la valeur d'une case "op-" au moment où l'utilisateur commence à l'éditer, pour
+  // pouvoir calculer le décalage une fois la saisie terminée
+  let opEditPreviousValue = null;
+  opCellIds.forEach(({ type, hole, id }) => {
+    const cell = document.getElementById(id);
+    if(!cell) return;
+    cell.addEventListener('focus', () => {
+      opEditPreviousValue = parseCellNumber(cell.textContent);
+    });
+    cell.addEventListener('blur', () => {
+      const raw = cell.textContent.trim();
+      let newVal = null;
+      if(raw === ''){
+        cell.textContent = '';
+        cell.className = 'val-empty';
+      } else {
+        const num = parseInt(raw, 10);
+        if(isNaN(num)){
+          cell.textContent = '';
+          cell.className = 'val-empty';
+        } else {
+          newVal = num;
+          cell.textContent = formatCents(num);
+          cell.className = num === 0 ? 'val-0' : (num > 0 ? 'val-pos' : 'val-neg');
+        }
+      }
+
+      // si une mesure existe déjà pour cette case (HarmonicaBox initial non vide), on répercute
+      // le changement d'"Opérations à réaliser" directement sur "Reste à faire", par décalage :
+      // nouveau reste à faire = ancien reste à faire + (nouvel op - ancien op)
+      const ctrlVal = parseCellNumber(document.getElementById('ctrl-' + type + '-' + hole).textContent);
+      const curCell = document.getElementById('cur-' + type + '-' + hole);
+      const oldCurVal = parseCellNumber(curCell.textContent);
+      if(ctrlVal !== null && oldCurVal !== null && newVal !== null && opEditPreviousValue !== null){
+        const delta = newVal - opEditPreviousValue;
+        const newCur = oldCurVal + delta;
+        curCell.textContent = formatCents(newCur);
+        setValueClass(curCell, newCur === 0 ? 'val-0' : (newCur > 0 ? 'val-pos' : 'val-neg'));
+        curCell.classList.toggle('win-cell', newCur === 0 || newCur === -1);
+        updateAlertState(curCell);
+        mirrorReedRemaining(type, hole);
+        checkAllGreenAndUpdateFinishStatus();
+      }
+      opEditPreviousValue = null;
+    });
+  });
+
   const PLAY_GAP_MS = 300;           // silence court = fin d'un jeu de note
   const NOT_EMPTY_RESET_MS = 7000; // 7s depuis la dernière mesure VALIDÉE (comptée) sur une case non vide = la moyenne repart de zéro
 
@@ -1985,7 +2278,8 @@
   let audioRecorderNode = null;       // capture audio brute en parallèle de l'analyseur
   let isCapturingPlayAudio = false;   // true pendant qu'un jeu de note est en cours
   let recordingChunks = [];           // morceaux audio bruts du jeu de note en cours
-  let lastCleanedAudio = null;        // { samples, sampleRate } du dernier son nettoyé, pour le bouton Play
+  let lastCleanedAudio = null;        // { samples, sampleRate } de la dernière note VALIDÉE, pour le bouton Play
+  let pendingCleanedAudio = null;     // son nettoyé calculé pour la mesure en cours, en attente de validation
   let playbackAudioCtx = null;        // contexte audio dédié à la lecture (indépendant du micro)
   let playInProgress = false;
   let currentPlaySamples = [];
@@ -1993,15 +2287,9 @@
   let accumulatedDeviations = [];   // écarts en cents (par rapport à la note attendue) de chaque jeu
   let lastAcceptedMeasurementAt = 0; // moment de la dernière mesure réellement comptée dans la moyenne
   let resetPendingForSilence = false; // évite de réinitialiser en boucle tant qu'aucune mesure n'est validée
+  let displayFrozen = false; // après une validation automatique, gèle l'affichage (base + reste à
+                              // faire) jusqu'à la prochaine réinitialisation des moyennes
   let targetWasEmpty = true;        // la case était-elle vide au moment de la sélection ?
-  let isPaused = false;             // en pause (silence ou manuel)
-  let pausedManually = false;       // true si la pause a été déclenchée par l'utilisateur (pas de reprise auto)
-  const pauseBtn = document.getElementById('pauseBtn');
-
-  function updatePauseButtonUI(){
-    pauseBtn.classList.toggle('active', isPaused);
-    pauseBtn.disabled = !recordingActive;
-  }
   let expectedBlowMidi = [];
   let expectedDrawMidi = [];
 
@@ -2046,6 +2334,7 @@
       cell.classList.remove('win-cell');
       cell.classList.remove('first-measure');
       consecutiveGreenCount[target.type + '-' + target.hole] = 0;
+      autoValidatedCells[target.type + '-' + target.hole] = false;
       updateAlertState(cell);
       mirrorReedRemaining(target.type, target.hole);
       checkAllGreenAndUpdateFinishStatus();
@@ -2060,17 +2349,22 @@
     cell.classList.toggle('win-cell', isGreenNow);
     if(isGreenNow && !wasGreen) triggerCellFirework(cell);
 
-    // pilote auto. — règle 4 : "Reste à faire" validé à -1 ou 0 deux fois d'affilée -> "Nice shot!"
+    // pilote auto. — règle 4 : "Reste à faire" validé à -1 ou 0 deux fois d'affilée -> message
+    // "OK, Next !" — la décision finale (jouer ce message, le remplacer par le message de
+    // réussite finale, ou ne rien jouer du tout) est arbitrée dans checkAllGreenAndUpdateFinishStatus
     const greenKey = target.type + '-' + target.hole;
     consecutiveGreenCount[greenKey] = isGreenNow ? ((consecutiveGreenCount[greenKey] || 0) + 1) : 0;
     lastGreenTransitionWasTwiceInRow = (consecutiveGreenCount[greenKey] === 2);
-    if(autopilotEnabled && lastGreenTransitionWasTwiceInRow){
-      queueVoiceMessage('Nice shot!');
+    if(!isGreenNow){
+      autoValidatedCells[greenKey] = false;
+    } else if(consecutiveGreenCount[greenKey] >= 2){
+      autoValidatedCells[greenKey] = true;
     }
+    greenMessageQueuedThisCall = false;
 
     updateAlertState(cell);
     mirrorReedRemaining(target.type, target.hole);
-    checkAllGreenAndUpdateFinishStatus();
+    checkAllGreenAndUpdateFinishStatus(target);
   }
 
   // ramène un écart en cents à sa valeur équivalente la plus proche de 0, en ignorant les
@@ -2099,6 +2393,10 @@
   }
 
   function computeAndAccumulate(target, avgFreq){
+    // affichage gelé suite à une validation automatique précédente : on ignore toute nouvelle
+    // mesure tant que les moyennes n'ont pas été explicitement réinitialisées
+    if(displayFrozen) return;
+
     const expectedMidi = (target.type === 'A' ? expectedDrawMidi : expectedBlowMidi)[target.hole - 1];
     const refA4 = parseFloat(refSelect.value);
     const rawCents = Math.round((12*Math.log2(avgFreq/refA4) - (expectedMidi-69)) * 100);
@@ -2126,7 +2424,14 @@
       accumulatedDeviations.push(cents);
       lastAcceptedMeasurementAt = performance.now();
       resetPendingForSilence = false; // une mesure a été validée : le minuteur de 7s repart de zéro
+      // cette mesure est retenue (pas ignorée) : le son nettoyé qui lui correspond devient celui
+      // du bouton Play — on ne veut écouter que la dernière note VALIDÉE par le programme
+      if(pendingCleanedAudio){
+        lastCleanedAudio = pendingCleanedAudio;
+        if(playBtn) playBtn.disabled = false;
+      }
     }
+    pendingCleanedAudio = null;
 
     if(accumulatedDeviations.length === 0){
       // aucune mesure valable retenue jusqu'ici (celle-ci a été ignorée, et rien avant) : on garde
@@ -2144,23 +2449,40 @@
     updateReedBase(target.type, target.hole, avg, isFirst);
 
     const ignoredNote = ignored ? '<br><span style="color:var(--flat-sharp)">Un son a été ignoré (' + ignoreReason + ')' + ignoredCentsNote + '.</span>' : '';
+    // étendue actuelle (après filtrage) et seuil applicable, affichés dans les commentaires pour
+    // que l'utilisateur voie exactement contre quoi la stabilité est jugée
+    const rangeInfo = filteredRangeInfo(accumulatedDeviations);
+    const seuilNote = '<br><span style="color:var(--text-dim)">Étendue actuelle (après filtrage) : ' + rangeInfo.range + ' ¢ — seuil : ' + rangeInfo.threshold + ' ¢ (' + rangeInfo.filtered.length + ' mesure(s) retenue(s))</span>';
 
     if(targetWasEmpty){
       recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — ' + accumulatedDeviations.length + ' mesure(s) prise(s)'
-        + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote;
+        + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote + seuilNote;
 
-      // pilote auto. — règle 2 : case vide, ≥3 mesures et écart-type sous le seuil -> validation
-      // automatique. Le message "ok buddy!" est mis en file AVANT de finaliser, pour qu'il se joue
-      // avant tout message déclenché en cascade par la finalisation (règle 6 : du moins au plus restrictif)
-      if(autopilotEnabled && !ignored && accumulatedDeviations.length >= 3 && stddevOf(accumulatedDeviations) < seuilValidation){
-        queueVoiceMessage('ok buddy!');
+      // pilote auto. — règle 2 : case vide, ≥3 mesures et écart-type sous le seuil (dynamique) ->
+      // validation automatique. La décision du message (ok buddy!, OK Next!, message final, ou
+      // changement de plaque) se fait APRÈS la finalisation, une fois qu'on sait ce que
+      // displayRemaining (appelée en interne par finalizeSelectedCellData) a déjà mis en file
+      if(autopilotEnabled && !ignored && accumulatedDeviations.length >= 3 && isStableByRange(accumulatedDeviations)){
+        displayFrozen = true; // avant toute autre action
+        greenMessageQueuedThisCall = false;
+        plaqueChangeTriggered = false;
+        finalCelebrationTriggered = false;
         finalizeSelectedCellData();
+        if(plaqueChangeTriggered){
+          playPlaqueChangeMelody();
+          queueVoiceMessage('OK, changement de plaque !');
+          handleCellClick('S', 1);
+          stopRecording('plaque-change');
+        } else if(finalCelebrationTriggered){
+          stopRecording('final');
+        } else if(!greenMessageQueuedThisCall){
+          playTwoBeeps(1400);
+          queueVoiceMessage('ok buddy!');
+        }
       }
     } else {
-      // pilote auto. — règle 3 : condition évaluée AVANT l'affichage, pour que "OK" soit mis en
-      // file avant tout message que displayRemaining pourrait déclencher en cascade (règle 6 :
-      // du moins au plus restrictif)
-      const stableEnough = accumulatedDeviations.length >= 2 && stddevOf(accumulatedDeviations) < seuilValidation;
+      // pilote auto. — règle 3 : condition évaluée AVANT l'affichage (seuil dynamique)
+      const stableEnough = accumulatedDeviations.length >= 2 && isStableByRange(accumulatedDeviations);
 
       // règle supplémentaire : validation dès la 1ère mesure acceptée si elle est à moins de 5
       // cents de l'écart précédemment affiché ET que le reste à faire s'en trouve amélioré
@@ -2179,23 +2501,50 @@
       }
 
       const willAutoValidate = autopilotEnabled && !ignored && (stableEnough || fastValidate);
-      if(willAutoValidate) queueVoiceMessage('OK');
+      if(willAutoValidate){
+        displayFrozen = true; // avant toute autre action
+        greenMessageQueuedThisCall = false;
+      }
+      // réinitialisés systématiquement (pas seulement si willAutoValidate) : sinon une valeur
+      // périmée d'une mesure précédente pourrait déclencher à tort le bloc ci-dessous
+      plaqueChangeTriggered = false;
+      finalCelebrationTriggered = false;
 
       displayRemaining(target, avg, isFirst);
       const cell = document.getElementById('cur-' + target.type + '-' + target.hole);
       const isGreenNow = cell.classList.contains('win-cell');
       if(isGreenNow){
         recordStatus.innerHTML = '<b style="color:var(--in-tune)">Gagné</b> — case ' + targetLabel(target) + ' (' + accumulatedDeviations.length + ' mesure(s) retenue(s)).'
-          + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote;
+          + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote + seuilNote;
       } else {
         recordStatus.innerHTML = 'Case <b>' + targetLabel(target) + '</b> — moyenne mise à jour en direct (' + accumulatedDeviations.length + ' mesure(s))'
-          + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote;
+          + '<br>Écart accordeur retenu pour la note en cours : <b>' + formatCents(avg) + ' ¢</b>' + ignoredNote + seuilNote;
       }
 
       if(willAutoValidate){
         finalizeSelectedCellData();
-        // règle 7 : si la validation a résulté en case verte, on avance vers la prochaine non verte
-        if(isGreenNow) advanceToNextNonGreenCell(target.type, target.hole);
+      }
+
+      // règle "changement de plaque" et avance vers la case suivante : liées à la même condition
+      // que "OK, Next !" (validée verte 2 fois d'affilée), et non à willAutoValidate — ces deux
+      // critères peuvent diverger (une case peut atteindre 2 mesures vertes d'affilée sans que le
+      // critère d'écart-type ne soit rempli séparément, ou l'inverse)
+      if(plaqueChangeTriggered){
+        // remplace le message et l'avance normale
+        playPlaqueChangeMelody();
+        queueVoiceMessage('OK, changement de plaque !');
+        handleCellClick('S', 1);
+        stopRecording('plaque-change');
+      } else if(finalCelebrationTriggered){
+        stopRecording('final');
+      } else {
+        if(willAutoValidate && !greenMessageQueuedThisCall){
+          playTwoBeeps(1200);
+          queueVoiceMessage('OK');
+        }
+        if(autopilotEnabled && recordingActive && isGreenNow && lastGreenTransitionWasTwiceInRow){
+          advanceToNextNonGreenCell(target.type, target.hole);
+        }
       }
     }
   }
@@ -2235,6 +2584,7 @@
     currentPlaySamples = [];
     lastAcceptedMeasurementAt = performance.now();
     resetPendingForSilence = false;
+    displayFrozen = false;
     recordStatus.classList.remove('error');
     recordStatus.innerHTML = 'Case sélectionnée : <b>' + targetLabel(selectedCell) + '</b> — joue la note à enregistrer';
   }
@@ -2286,11 +2636,12 @@
 
     const avgFreq = stable.reduce((a,s) => a + s.freq, 0) / stable.length;
 
-    // construit le son "nettoyé" : les morceaux audio bruts correspondant aux échantillons de
-    // hauteur retenus (stable) sont conservés et mis bout à bout ; ceux qui correspondent aux
-    // échantillons écartés (souffle, bords du jeu) sont retirés
-    lastCleanedAudio = buildCleanedAudioBuffer(currentPlaySamples, stable, recordingChunks, audioCtx ? audioCtx.sampleRate : 44100);
-    if(playBtn) playBtn.disabled = !lastCleanedAudio;
+    // construit le son "nettoyé" candidat : les morceaux audio bruts correspondant aux
+    // échantillons de hauteur retenus (stable) sont conservés et mis bout à bout ; ceux qui
+    // correspondent aux échantillons écartés (souffle, bords du jeu) sont retirés. Il ne devient
+    // le son du bouton Play que si computeAndAccumulate juge cette mesure valable (voir plus bas) —
+    // on ne veut écouter que la dernière note VALIDÉE, pas n'importe quel son enregistré.
+    pendingCleanedAudio = buildCleanedAudioBuffer(currentPlaySamples, stable, recordingChunks, audioCtx ? audioCtx.sampleRate : 44100);
 
     currentPlaySamples = [];
     recordingChunks = [];
@@ -2389,7 +2740,6 @@
     }
     setSelectedCell(type, hole);
     if(recordingActive){
-      if(isPaused){ isPaused = false; pausedManually = false; updatePauseButtonUI(); }
       armSelectedCellForRecording();
     }
   }
@@ -2405,19 +2755,25 @@
   });
 
   function recordFrame(freq, now){
-    if(isPaused && pausedManually) return; // pause manuelle : on ignore tout jusqu'à la reprise par l'utilisateur
-
     // case déjà remplie (pas vide) + 7s depuis la dernière mesure réellement VALIDÉE (comptée dans
     // la moyenne) : la moyenne interne repart de zéro, même si du bruit parasite continue à
     // produire des détections de hauteur entre-temps (ce bruit ne compte pas comme une mesure).
     // L'affichage (écart, reste à faire) garde sa dernière valeur jusqu'à la prochaine mesure.
+    // IMPORTANT : cette vérification doit s'exécuter AVANT le blocage du gel ci-dessous, sinon
+    // le gel ne pourrait plus jamais se lever par simple attente une fois activé.
     if(recordingActive && selectedCell && !targetWasEmpty && !resetPendingForSilence
        && (now - lastAcceptedMeasurementAt) > NOT_EMPTY_RESET_MS){
       accumulatedDeviations = [];
       resetPendingForSilence = true;
+      displayFrozen = false;
       recordStatus.classList.remove('error');
       recordStatus.innerHTML = 'Aucune mesure validée depuis 7 s — la moyenne repart de zéro pour la case <b>' + targetLabel(selectedCell) + '</b> (les valeurs affichées restent inchangées).';
     }
+
+    // affichage gelé suite à une validation automatique : on ignore tout, y compris une note
+    // actuellement en train d'être enregistrée — aucun échantillon n'est capté tant que le gel
+    // n'est pas levé (par le minuteur de 7s ci-dessus, ou par un changement/reclic de case)
+    if(displayFrozen) return;
 
     if(freq !== -1){
       lastValidSampleAt = now;
@@ -2450,10 +2806,8 @@
     playInProgress = false;
     currentPlaySamples = [];
     accumulatedDeviations = [];
+    displayFrozen = false;
     targetWasEmpty = true;
-    isPaused = false;
-    pausedManually = false;
-    updatePauseButtonUI();
     recordBtn.classList.remove('recording');
     recordBtnText.textContent = 'Enregistrement';
     deleteBtn.disabled = !selectedCell;
@@ -2467,6 +2821,12 @@
       recordStatus.innerHTML = (finishedTarget
         ? 'Arrêt manuel — case <b>' + targetLabel(finishedTarget) + '</b> ' + (wasEmpty ? 'enregistrée.' : 'mise à jour.')
         : 'Enregistrement arrêté.') + ecartLine;
+    } else if(reason === 'plaque-change'){
+      recordStatus.classList.remove('error');
+      recordStatus.innerHTML = 'Rangée aspirée terminée — enregistrement arrêté. Change la plaque, puis relance l\u2019enregistrement quand tu es prêt.';
+    } else if(reason === 'final'){
+      recordStatus.classList.remove('error');
+      recordStatus.innerHTML = 'Accordage terminé — enregistrement arrêté. 🎉';
     } else {
       recordStatus.innerHTML = '&nbsp;';
     }
@@ -2491,10 +2851,8 @@
     playInProgress = false;
     currentPlaySamples = [];
     accumulatedDeviations = [];
+    displayFrozen = false;
     targetWasEmpty = true;
-    isPaused = false;
-    pausedManually = false;
-    updatePauseButtonUI();
     lastValidSampleAt = performance.now();
     recordBtn.classList.add('recording');
     recordBtnText.textContent = 'Arrêter';
@@ -2508,24 +2866,6 @@
     }
   });
 
-  pauseBtn.addEventListener('click', () => {
-    if(!recordingActive) return;
-    if(isPaused){
-      isPaused = false;
-      pausedManually = false;
-      updatePauseButtonUI();
-      recordStatus.classList.remove('error');
-      recordStatus.innerHTML = selectedCell
-        ? ('Reprise sur <b>' + targetLabel(selectedCell) + '</b>.')
-        : 'Reprise — sélectionne une case.';
-    } else {
-      if(selectedCell) finalizeSelectedCellData(); // cohérent avec la pause automatique
-      isPaused = true;
-      pausedManually = true;
-      updatePauseButtonUI();
-      recordStatus.innerHTML = 'En pause (manuel) — clique à nouveau sur ce bouton pour reprendre.';
-    }
-  });
 })();
 </script>
 
