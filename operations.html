@@ -2468,8 +2468,16 @@
       // pilote auto. — règle 2 : case vide, ≥3 mesures et écart-type sous le seuil (dynamique) ->
       // validation automatique. La décision du message (ok buddy!, OK Next!, message final, ou
       // changement de plaque) se fait APRÈS la finalisation, une fois qu'on sait ce que
-      // displayRemaining (appelée en interne par finalizeSelectedCellData) a déjà mis en file
-      if(autopilotEnabled && !ignored && accumulatedDeviations.length >= 3 && isStableByRange(accumulatedDeviations)){
+      // displayRemaining (appelée en interne par finalizeSelectedCellData) a déjà mis en file.
+      //
+      // Règle supplémentaire : si la case est vide et que la 2e mesure acceptée est EXACTEMENT
+      // identique à la 1ère, et que l'anche n'est ni la 1, ni la 2, ni la 3 (quelle que soit la
+      // rangée), on valide dès ces 2 mesures sans attendre la 3e.
+      const twoIdenticalMeasures = accumulatedDeviations.length === 2
+        && accumulatedDeviations[0] === accumulatedDeviations[1]
+        && target.hole > 3;
+
+      if(autopilotEnabled && !ignored && ((accumulatedDeviations.length >= 3 && isStableByRange(accumulatedDeviations)) || twoIdenticalMeasures)){
         displayFrozen = true; // avant toute autre action
         greenMessageQueuedThisCall = false;
         plaqueChangeTriggered = false;
