@@ -37,6 +37,20 @@
     padding: 20px 24px;
     box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.03);
   }
+  .comments-textarea{
+    width: 100%;
+    min-height: 90px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--panel-line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+    box-sizing: border-box;
+  }
   .load-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
   input[type="file"]{
     font-family: 'JetBrains Mono', monospace;
@@ -700,6 +714,32 @@
     border-radius: 2px 2px 0 0;
     cursor: pointer;
   }
+  .reed-tuning-adj{
+    position: absolute;
+    left: 50%;
+    top: -24px; /* au-dessus de la plus haute anche possible (66px, qui affleure le haut du
+                   plateau de 93px), avec une marge pour ne toucher aucune anche */
+    transform: translateX(-50%);
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 2px solid var(--gold);
+    background: var(--bg);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--gold);
+    pointer-events: none;
+    z-index: 4;
+  }
+  /* pour les soufflés (plateau aligné en bas), le badge est un peu plus bas que pour les
+     aspirés — moins de marge au-dessus */
+  .reed-plate-bottom .reed-tuning-adj{
+    top: -16px;
+  }
   .reed-body.reed-selected{
     border: 2px solid var(--gold);
   }
@@ -1007,6 +1047,16 @@
 
   </div>
 
+  <div class="seq-panel" style="margin-top:20px;">
+    <div class="harmo-title">Commentaires</div>
+    <textarea id="commentsField" class="comments-textarea" placeholder="Notes libres sur cet harmonica..."></textarea>
+  </div>
+
+  <div class="seq-panel" style="margin-top:20px; text-align:center;">
+    <div class="harmo-title">Temps d'accordage</div>
+    <div id="tuningTimer" style="font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:0.18em; color:var(--text-dim);">00:00:00</div>
+  </div>
+
 </div>
 
 <script>
@@ -1104,9 +1154,29 @@
     });
 
     tuningChangeNote.textContent = tuningChangeSummaryText(tuningSelect.value);
+    renderTuningAdjustmentLabels();
   }
 
   tuningSelect.addEventListener('change', applyTuningOverridesToOperations);
+
+  // affiche, sur le corps de chaque anche modifiée par l'accordage en cours (si ce n'est pas
+  // Richter), le nombre de demi-tons à modifier par rapport à Richter, en jaune, avec son signe
+  function renderTuningAdjustmentLabels(){
+    // on retire d'abord tous les libellés précédents
+    document.querySelectorAll('.reed-tuning-adj').forEach(el => el.remove());
+
+    const tuning = TUNINGS[tuningSelect.value] || TUNINGS.richter;
+    Object.keys(tuning.adjust).forEach(key => {
+      const type = key[0], hole = key.slice(1);
+      const delta = tuning.adjust[key];
+      const plate = document.getElementById('reed-body-' + type + '-' + hole);
+      if(!plate || !plate.parentElement) return;
+      const label = document.createElement('div');
+      label.className = 'reed-tuning-adj';
+      label.textContent = (delta > 0 ? '+' : '') + delta;
+      plate.parentElement.appendChild(label);
+    });
+  }
 
   // six tableaux de correspondances : un par modèle d'harmonica (Signature / Origin) croisé avec
   // le groupe de tonalités. Pour l'instant toutes les cases valent "?" ; à affiner plus tard.
@@ -1303,6 +1373,16 @@
   let harmonicaSouffleInitial = { A: [], S: [] }; // "HarmonicaSouffle initial" (accordeur, ex-séquence enregistrée) chargé depuis le fichier
 
   function loadFromData(data){
+    isLoadingFile = true; // suspend le figement du chronomètre pendant les étapes intermédiaires du chargement
+    // chronomètre : on part de la valeur enregistrée dans le fichier (0 si absente) ; la décision
+    // de figer ou non se fera naturellement à la fin du chargement, une fois l'état "tout vert"
+    // définitivement connu (voir plus bas)
+    timerRunning = false;
+    timerStartWallClock = null;
+    timerFrozenSeconds = null;
+    timerBaseSeconds = (typeof data.timerSeconds === 'number' && !isNaN(data.timerSeconds)) ? data.timerSeconds : 0;
+    updateTimerDisplay();
+
     if(typeof recordingActive !== 'undefined' && recordingActive) stopRecording('manual');
     if(typeof selectedCell !== 'undefined' && selectedCell){
       const prev = document.getElementById('cur-' + selectedCell.type + '-' + selectedCell.hole);
@@ -1314,6 +1394,8 @@
     harmoNameInput.value = data.harmonica || '';
     if(data.tonalite) keySelect.value = data.tonalite;
     tuningSelect.value = data.accordage && TUNINGS[data.accordage] ? data.accordage : 'richter';
+    tuningChangeNote.textContent = tuningChangeSummaryText(tuningSelect.value);
+    renderTuningAdjustmentLabels();
     setHarmoModel(data.modele === 'origin' ? 'origin' : 'signature');
     referenceSequence = data.reference && data.reference.A && data.reference.S ? data.reference : { A: [], S: [] };
     harmonicaSouffleInitial = data.enregistree && data.enregistree.A && data.enregistree.S ? data.enregistree : { A: [], S: [] };
@@ -1350,7 +1432,27 @@
     }
     // la vérification automatique a le dernier mot : elle corrige le statut restauré du fichier
     // si l'état réel des 20 cases (couleur verte ou non) ne correspond plus
+    isLoadingFile = false;
     if(typeof checkAllGreenAndUpdateFinishStatus === 'function') checkAllGreenAndUpdateFinishStatus();
+
+    // décision finale du chronomètre : indépendante de la logique de transition ci-dessus (qui ne
+    // se déclenche qu'une fois et pourrait être court-circuitée si le fichier indiquait déjà
+    // l'accordage comme terminé) — si toutes les cases sont effectivement vertes à ce stade, on
+    // affiche le temps chargé, figé, sans jamais démarrer le chrono pour cette session
+    let allGreenAfterLoad = true;
+    ['A','S'].forEach(type => {
+      for(let h=1; h<=10; h++){
+        const cell = document.getElementById('cur-' + type + '-' + h);
+        if(!cell || !cell.classList.contains('win-cell')) allGreenAfterLoad = false;
+      }
+    });
+    if(allGreenAfterLoad){
+      timerFrozenSeconds = timerBaseSeconds;
+      updateTimerDisplay();
+    }
+
+    const commentsField = document.getElementById('commentsField');
+    if(commentsField) commentsField.value = data.commentaires || '';
 
     loadStatus.textContent = 'Harmonica chargé : ' + (data.harmonica || '—');
     if(typeof deleteBtn !== 'undefined') deleteBtn.disabled = true;
@@ -1634,6 +1736,60 @@
   // à arrêter l'enregistrement juste après, comme pour le changement de plaque
   let finalCelebrationTriggered = false;
 
+  // ==== Chronomètre d'accordage : temps réel écoulé entre la première sélection d'une case et
+  // la finalisation (toutes les cases vertes) ====
+  let timerBaseSeconds = 0;      // secondes déjà écoulées avant cette session (0, ou valeur chargée du fichier)
+  let timerStartWallClock = null; // Date.now() au moment où le chrono a démarré dans cette session
+  let timerRunning = false;
+  let timerFrozenSeconds = null;  // non-null = figé définitivement à cette valeur (accordage terminé)
+  let timerIntervalId = null;
+  let isLoadingFile = false; // suspend le figement automatique du chronomètre pendant un chargement
+  const tuningTimerEl = document.getElementById('tuningTimer');
+
+  function formatTimer(totalSeconds){
+    const s = Math.max(0, Math.floor(totalSeconds));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+  }
+
+  function getCurrentTimerSeconds(){
+    if(timerFrozenSeconds !== null) return timerFrozenSeconds;
+    if(timerRunning && timerStartWallClock !== null){
+      return timerBaseSeconds + Math.floor((Date.now() - timerStartWallClock) / 1000);
+    }
+    return timerBaseSeconds;
+  }
+
+  function updateTimerDisplay(){
+    if(tuningTimerEl) tuningTimerEl.textContent = formatTimer(getCurrentTimerSeconds());
+  }
+
+  // déclenché par le premier clic de sélection d'une case (anche) dans la session — ne fait rien
+  // si le chrono est déjà en cours, ou déjà figé (accordage déjà terminé pour ce fichier)
+  function startTuningTimerIfNeeded(){
+    if(timerRunning || timerFrozenSeconds !== null) return;
+    timerRunning = true;
+    timerStartWallClock = Date.now();
+    if(timerIntervalId) clearInterval(timerIntervalId);
+    timerIntervalId = setInterval(updateTimerDisplay, 500);
+    updateTimerDisplay();
+  }
+
+  // déclenché dès que toutes les cases deviennent vertes : fige définitivement le chrono à sa
+  // valeur actuelle (ne repart plus jamais, même si une case redevient non verte ensuite)
+  function stopTuningTimerAndFreeze(){
+    if(isLoadingFile) return; // état intermédiaire pendant un chargement : pas de décision définitive ici
+    if(timerFrozenSeconds !== null) return; // déjà figé
+    timerFrozenSeconds = getCurrentTimerSeconds();
+    timerRunning = false;
+    if(timerIntervalId){ clearInterval(timerIntervalId); timerIntervalId = null; }
+    updateTimerDisplay();
+  }
+
+  updateTimerDisplay(); // affiche 00:00:00 tant qu'aucun fichier n'a été chargé et rien sélectionné
+
   finishBtn.addEventListener('click', () => {
     tuningFinished = !tuningFinished;
     finishBtn.classList.toggle('active', tuningFinished);
@@ -1742,6 +1898,7 @@
       if(!tuningFinished){
         tuningFinished = true;
         finishBtn.classList.add('active');
+        stopTuningTimerAndFreeze();
       }
       // le feu d'artifice ET le message final ne se déclenchent que si la dernière case a été
       // validée au vert 2 fois d'affilée — le feu d'artifice quel que soit l'état du pilote
@@ -1801,7 +1958,9 @@
       harmonicaFinal: {
         ecarts: { A: collectRow('reed-base', 'A'), S: collectRow('reed-base', 'S') },
         resteAFaire: { A: collectRow('cur', 'A'), S: collectRow('cur', 'S') }
-      }
+      },
+      commentaires: document.getElementById('commentsField').value,
+      timerSeconds: getCurrentTimerSeconds()
     });
     const jsonText = JSON.stringify(data, null, 2);
     // suffixe "_FAIT" (pas préfixe) quand l'accordage est marqué terminé : le fichier reste juste
@@ -2575,6 +2734,7 @@
   }
 
   function setSelectedCell(type, hole){
+    startTuningTimerIfNeeded();
     if(selectedCell){
       const prev = document.getElementById('cur-' + selectedCell.type + '-' + selectedCell.hole);
       if(prev) prev.classList.remove('cell-selected');
