@@ -1777,6 +1777,44 @@
     updateTimerDisplay();
   }
 
+  // ==== Inactivité : si 10mn sans aucune action de l'utilisateur ET (10mn sans son validé pour
+  // la case sélectionnée OU aucune case sélectionnée), on met le chrono en pause et on retire les
+  // 5 dernières minutes (probablement du temps de pause réelle, pas de travail effectif). Reprend
+  // dès qu'une action ou un son validé survient.
+  const IDLE_TIMEOUT_MS = 10 * 60 * 1000;
+  const IDLE_DEDUCTION_SECONDS = 10 * 60;
+  let lastUserActionAt = Date.now();
+  let lastValidatedSoundAt = Date.now();
+
+  // à appeler à chaque action de l'utilisateur (clic, sélection, changement de réglage...) —
+  // met à jour l'horodatage ET relance le chrono s'il était en pause
+  function markUserActivity(){
+    lastUserActionAt = Date.now();
+    startTuningTimerIfNeeded();
+  }
+
+  // à appeler quand un son est validé (accepté, pas ignoré) pour la case actuellement sélectionnée
+  function markValidatedSoundForSelectedCell(){
+    lastValidatedSoundAt = Date.now();
+    startTuningTimerIfNeeded();
+  }
+
+  function checkTimerIdle(){
+    if(!timerRunning || timerFrozenSeconds !== null) return;
+    const now = Date.now();
+    const userIdle = (now - lastUserActionAt) >= IDLE_TIMEOUT_MS;
+    const soundIdle = (selectedCell === null) || ((now - lastValidatedSoundAt) >= IDLE_TIMEOUT_MS);
+    if(userIdle && soundIdle){
+      const current = getCurrentTimerSeconds();
+      timerBaseSeconds = Math.max(0, current - IDLE_DEDUCTION_SECONDS);
+      timerRunning = false;
+      timerStartWallClock = null;
+      if(timerIntervalId){ clearInterval(timerIntervalId); timerIntervalId = null; }
+      updateTimerDisplay();
+    }
+  }
+  setInterval(checkTimerIdle, 30 * 1000); // vérification toutes les 30 secondes
+
   // déclenché dès que toutes les cases deviennent vertes : fige définitivement le chrono à sa
   // valeur actuelle (ne repart plus jamais, même si une case redevient non verte ensuite)
   function stopTuningTimerAndFreeze(){
@@ -2590,6 +2628,7 @@
       accumulatedDeviations.push(cents);
       lastAcceptedMeasurementAt = performance.now();
       resetPendingForSilence = false; // une mesure a été validée : le minuteur de 7s repart de zéro
+      markValidatedSoundForSelectedCell(); // pour le chronomètre : reprise/maintien si en pause pour inactivité
       // cette mesure est retenue (pas ignorée) : le son nettoyé qui lui correspond devient celui
       // du bouton Play — on ne veut écouter que la dernière note VALIDÉE par le programme
       if(pendingCleanedAudio){
@@ -2734,7 +2773,7 @@
   }
 
   function setSelectedCell(type, hole){
-    startTuningTimerIfNeeded();
+    markUserActivity();
     if(selectedCell){
       const prev = document.getElementById('cur-' + selectedCell.type + '-' + selectedCell.hole);
       if(prev) prev.classList.remove('cell-selected');
@@ -2873,6 +2912,7 @@
   }
 
   deleteBtn.addEventListener('click', () => {
+    markUserActivity();
     if(!selectedCell) return;
     const { type, hole } = selectedCell;
     const curCell = document.getElementById('cur-' + type + '-' + hole);
@@ -3008,6 +3048,7 @@
   }
 
   recordBtn.addEventListener('click', async () => {
+    markUserActivity();
     if(recordingActive){
       stopRecording('manual');
       return;
